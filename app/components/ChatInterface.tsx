@@ -64,12 +64,23 @@ export default function ChatInterface() {
       chatId = newChatId;
     }
 
-    // Add user message
-    await addMessage(chatId, 'user', content, imageUrl);
     setIsLoading(true);
 
-    // Get all messages for this chat
-    const allMessages = [...currentMessages, { role: 'user' as const, content }];
+    // Load fresh messages from database to ensure full context
+    const { data: freshMessages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    // Build message history with the new user message
+    const allMessages = [
+      ...(freshMessages || []).map(m => ({ role: m.role, content: m.content })),
+      { role: 'user' as const, content, image_url: imageUrl }
+    ];
+
+    // Add user message to database
+    await addMessage(chatId, 'user', content, imageUrl);
 
     try {
       const response = await fetch('/api/chat', {
@@ -85,9 +96,6 @@ export default function ChatInterface() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
-
-      // Add empty assistant message
-      await addMessage(chatId, 'assistant', '');
 
       if (reader) {
         while (true) {
@@ -116,15 +124,15 @@ export default function ChatInterface() {
         }
       }
 
-      // Update the last message with complete content
-      await addMessage(chatId, 'assistant', accumulatedContent);
+      // Add the complete assistant message (only ONE message, no empty one)
+      await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
       await addMessage(chatId, 'assistant', 'Sajnos hiba történt. Kérlek, próbáld újra.');
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentChatId, currentMessages, createNewChat, addMessage]);
+  }, [user, currentChatId, createNewChat, addMessage]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
