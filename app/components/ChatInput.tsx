@@ -8,13 +8,15 @@ interface ChatInputProps {
   isLoading: boolean;
   onImageUpload?: (file: File) => Promise<string | null>;
   placeholder?: string;
+  onPreviewChange?: (previewUrl: string | null) => void;
 }
 
 export default function ChatInput({ 
   onSend, 
   isLoading, 
   onImageUpload,
-  placeholder = "Üzenet írása..." 
+  placeholder = "Üzenet írása...",
+  onPreviewChange,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -39,6 +41,7 @@ export default function ChatInput({
     setInput('');
     setSelectedImage(null);
     setImagePreview(null);
+    if (onPreviewChange) onPreviewChange(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -86,6 +89,7 @@ export default function ChatInput({
       // Create preview
       const previewUrl = URL.createObjectURL(compressedFile);
       setImagePreview(previewUrl);
+      if (onPreviewChange) onPreviewChange(previewUrl);
     } catch (error) {
       console.error('Error compressing image:', error);
     }
@@ -94,6 +98,7 @@ export default function ChatInput({
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    if (onPreviewChange) onPreviewChange(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

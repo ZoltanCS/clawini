@@ -18,6 +18,7 @@ export default function ChatInterface() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
@@ -81,6 +82,7 @@ export default function ChatInterface() {
 
     // Add user message to database
     await addMessage(chatId, 'user', content, imageUrl);
+    setPendingImagePreview(null);
 
     try {
       const response = await fetch('/api/chat', {
@@ -242,6 +244,24 @@ export default function ChatInterface() {
             isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
           />
+
+          {/* Pending Image Preview */}
+          {pendingImagePreview && (
+            <div className="px-4 py-0">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex justify-end mb-2">
+                  <div className="bg-gray-100 rounded-2xl p-3 max-w-[75%]">
+                    <img 
+                      src={pendingImagePreview} 
+                      alt="Preview" 
+                      className="max-w-full max-h-48 rounded-lg object-cover"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Feltöltésre vár...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input Area */}
@@ -251,6 +271,7 @@ export default function ChatInterface() {
               onSend={handleSendMessage}
               isLoading={isLoading}
               onImageUpload={handleImageUpload}
+              onPreviewChange={setPendingImagePreview}
               placeholder={user ? "Kérdezz bármit..." : "Bejelentkezés szükséges a chathez"}
             />
             <p className="text-center text-xs text-gray-400 mt-2">
