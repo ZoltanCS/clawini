@@ -168,6 +168,86 @@ export default function ChatInterface() {
     setCurrentChatId(null);
   }, [signOut, setCurrentChatId]);
 
+  const handleRegenerate = useCallback(async (messageId: string) => {
+    if (!currentChatId || !user) return;
+
+    // Find the message to regenerate
+    const messageToRegenerate = currentMessages.find(m => m.id === messageId);
+    if (!messageToRegenerate || messageToRegenerate.role !== 'assistant') return;
+
+    // Get all messages up to (but not including) this one
+    const messagesBefore = currentMessages.filter(m => 
+      new Date(m.created_at) < new Date(messageToRegenerate.created_at)
+    );
+
+    // Delete the old message
+    await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId)
+      .eq('chat_id', currentChatId);
+
+    // Regenerate
+    setIsLoading(true);
+    
+    const allMessages = messagesBefore.map(m => ({ 
+      role: m.role, 
+      content: m.content,
+      image_url: m.image_url 
+    }));
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: allMessages }),
+      });
+
+      if (!response.ok) throw new Error('Failed to get response');
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      setStreamingContent('');
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) {
+                  accumulatedContent += delta;
+                  setStreamingContent(accumulatedContent);
+                }
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      }
+
+      setStreamingContent('');
+      await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
+    } catch (error) {
+      console.error('Error:', error);
+      await addMessage(currentChatId, 'assistant', 'Sajnos hiba történt. Kérlek, próbáld újra.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentChatId, currentMessages, user, addMessage]);
+
   if (isAuthLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -248,6 +328,7 @@ export default function ChatInterface() {
             isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
+            onRegenerate={handleRegenerate}
           />
 
           {/* Pending Image Preview */}

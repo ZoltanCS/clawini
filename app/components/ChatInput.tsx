@@ -161,19 +161,15 @@ export default function ChatInput({
           />
 
           {/* Send button or Voice button */}
-          {(input.trim() || selectedImage) ? (
+          {(input.trim() || selectedImage) && !isUploading ? (
             <button
               type="submit"
-              disabled={isLoading || isUploading}
+              disabled={isLoading}
               className="flex-shrink-0 w-10 h-10 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
             >
-              {isUploading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              )}
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
             </button>
           ) : (
             <button

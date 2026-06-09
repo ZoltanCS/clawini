@@ -10,6 +10,7 @@ interface MessageListProps {
   isLoading: boolean;
   onMessagesLoaded?: (messages: Message[]) => void;
   streamingContent?: string;
+  onRegenerate?: (messageId: string) => void;
 }
 
 function TypingIndicator() {
@@ -34,7 +35,7 @@ function TypingIndicator() {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -106,7 +107,11 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     <div className="flex-1 overflow-y-auto px-4 py-4">
       <div className="max-w-3xl mx-auto">
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble 
+            key={message.id} 
+            message={message} 
+            onRegenerate={() => onRegenerate?.(message.id)}
+          />
         ))}
         {streamingContent && (
           <div className="flex justify-start mb-4">
