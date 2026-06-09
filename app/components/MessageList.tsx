@@ -66,13 +66,19 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
 
     loadMessages();
 
-    // Subscribe to new messages
+    // Subscribe to message changes (INSERT, DELETE, UPDATE)
     const subscription = supabase
       .channel(`messages-${chatId}`)
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+        { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          if (payload.eventType === 'INSERT') {
+            setMessages((prev) => [...prev, payload.new as Message]);
+          } else if (payload.eventType === 'DELETE') {
+            setMessages((prev) => prev.filter(m => m.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new as Message : m));
+          }
         }
       )
       .subscribe();
