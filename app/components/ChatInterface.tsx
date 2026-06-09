@@ -5,6 +5,7 @@ import { useAuth } from '@/app/hooks/useAuth';
 import { useSupabaseChat } from '@/app/hooks/useSupabaseChat';
 import { Message } from '@/app/types';
 import { supabase } from '@/app/lib/supabase';
+import { countMessageTokens, formatTokenCount } from '@/app/lib/tokens';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -20,6 +21,8 @@ export default function ChatInterface() {
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
+  const [tokenCount, setTokenCount] = useState<number>(0);
+  const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
@@ -51,6 +54,61 @@ export default function ChatInterface() {
     uploadImage,
   } = useSupabaseChat(user);
 
+  // Auto-generate chat title based on first message
+  const generateChatTitle = useCallback(async (chatId: string, firstMessage: string) => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'user', content: `Csinálj egy rövid, lényegretörő címet (max 5 szó) ehhez a beszélgetéshez. Csak a címet írd, semmi mást.\n\nÜzenet: "${firstMessage}"` }
+          ],
+          enableSearch: false
+        }),
+      });
+
+      if (!response.ok) return;
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let title = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) title += delta;
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      }
+
+      // Clean up title
+      title = title.trim().replace(/^["']|["']$/g, '').replace(/^(Cím:|Title:)\s*/i, '');
+      if (title && title.length > 3 && title.length < 100) {
+        await updateChatTitle(chatId, title);
+      }
+    } catch (error) {
+      console.error('Error generating title:', error);
+    }
+  }, [updateChatTitle]);
+
   const handleSendMessage = useCallback(async (content: string, imageUrl?: string | null) => {
     if (!user) {
       setIsAuthModalOpen(true);
@@ -80,6 +138,16 @@ export default function ChatInterface() {
       ...(freshMessages || []).map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content, image_url: imageUrl }
     ];
+
+    // Update token count
+    const tokens = countMessageTokens(allMessages);
+    setTokenCount(tokens);
+
+    // Generate title on FIRST message only
+    if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
+      generateChatTitle(chatId, content);
+      setHasGeneratedTitle(prev => new Set(prev).add(chatId));
+    }
 
     // Add user message to database
     await addMessage(chatId, 'user', content, imageUrl);
@@ -293,6 +361,16 @@ export default function ChatInterface() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
+            
+            {/* Token Counter */}
+            {tokenCount > 0 && (
+              <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>{formatTokenCount(tokenCount)} token</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
