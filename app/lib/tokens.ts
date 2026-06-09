@@ -1,7 +1,7 @@
-import { encoding_for_model } from 'js-tiktoken';
+import { get_encoding } from 'tiktoken';
 
-// Get encoder for GPT-4 (closest to Gemini tokenization)
-const encoder = encoding_for_model('gpt-4');
+// Get encoder for cl100k_base (GPT-4/GPT-3.5 tokenizer - closest to Gemini)
+const encoder = get_encoding('cl100k_base');
 
 export function countTokens(text: string): number {
   if (!text) return 0;
