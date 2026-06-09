@@ -23,24 +23,18 @@ export async function POST(req: Request) {
       return { role: msg.role, content: msg.content };
     });
 
-    // If search is enabled, add a system message to encourage tool use
-    if (enableSearch) {
-      formattedMessages.unshift({
-        role: 'system',
-        content: 'You have access to web search. Use it when the user asks about current events, news, or information that might be outdated in your training data. Always cite your sources.'
-      });
-    }
+    // Add system prompt for Gemini
+    formattedMessages.unshift({
+      role: 'system',
+      content: 'You are Gemini, a helpful AI assistant. Always respond in the same language as the user. Be concise but thorough. If you see an image, analyze it carefully and describe what you see.'
+    });
 
     const requestBody: any = {
       model: 'google/gemini-3.1-flash-lite-preview',
       messages: formattedMessages,
       stream: true,
+      plugins: [{ id: 'web_search' }], // Always enable search, model decides when to use it
     };
-
-    // Enable plugins/tools if search is requested
-    if (enableSearch) {
-      requestBody.plugins = [{ id: 'web_search' }];
-    }
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

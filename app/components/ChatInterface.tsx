@@ -19,7 +19,6 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
-  const [enableSearch, setEnableSearch] = useState(false);
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
@@ -89,7 +88,7 @@ export default function ChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, enableSearch }),
+        body: JSON.stringify({ messages: allMessages }),
       });
 
       if (!response.ok) {
@@ -193,7 +192,7 @@ export default function ChatInterface() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full relative">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/80 backdrop-blur-sm z-10">
+        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
@@ -213,20 +212,6 @@ export default function ChatInterface() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setEnableSearch(!enableSearch)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
-                enableSearch 
-                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title={enableSearch ? 'Keresés bekapcsolva' : 'Keresés kikapcsolva'}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span className="hidden sm:inline">{enableSearch ? 'Keresés ON' : 'Keresés'}</span>
-            </button>
             <button
               onClick={handleNewChat}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
