@@ -1,23 +1,5 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "next build",
   "outputDirectory": "dist",
-  "framework": "nextjs",
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": {
-      "description": "Your Supabase project URL",
-      "type": "string",
-      "required": true
-    },
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": {
-      "description": "Your Supabase anonymous/public API key",
-      "type": "string",
-      "required": true
-    },
-    "OPENROUTER_API_KEY": {
-      "description": "Your OpenRouter API key (get it from https://openrouter.ai/keys)",
-      "type": "string",
-      "required": true
-    }
-  }
+  "framework": "nextjs"
 }
