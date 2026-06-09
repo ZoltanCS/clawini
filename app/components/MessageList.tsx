@@ -9,6 +9,7 @@ interface MessageListProps {
   chatId: string | null;
   isLoading: boolean;
   onMessagesLoaded?: (messages: Message[]) => void;
+  streamingContent?: string;
 }
 
 function TypingIndicator() {
@@ -33,7 +34,7 @@ function TypingIndicator() {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -107,7 +108,22 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded }: Mes
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}
-        {isLoading && <TypingIndicator />}
+        {streamingContent && (
+          <div className="flex justify-start mb-4">
+            <div className="max-w-[85%] sm:max-w-[75%] px-4 py-3 rounded-2xl bg-transparent">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 relative">
+                  <svg viewBox="0 0 24 24" className="w-full h-full">
+                    <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-gray-600">Gemini</span>
+              </div>
+              <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{streamingContent}</div>
+            </div>
+          </div>
+        )}
+        {isLoading && !streamingContent && <TypingIndicator />}
         <div ref={bottomRef} />
         
         {/* Disclaimer */}

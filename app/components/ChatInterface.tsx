@@ -19,6 +19,7 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>('');
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
@@ -98,6 +99,7 @@ export default function ChatInterface() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      setStreamingContent('');
 
       if (reader) {
         while (true) {
@@ -117,6 +119,7 @@ export default function ChatInterface() {
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) {
                   accumulatedContent += delta;
+                  setStreamingContent(accumulatedContent); // Update UI in real-time
                 }
               } catch (e) {
                 // Ignore parse errors for incomplete chunks
@@ -126,6 +129,7 @@ export default function ChatInterface() {
         }
       }
 
+      setStreamingContent('');
       // Add the complete assistant message (only ONE message, no empty one)
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
@@ -243,6 +247,7 @@ export default function ChatInterface() {
             chatId={currentChatId}
             isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
+            streamingContent={streamingContent}
           />
 
           {/* Pending Image Preview */}
