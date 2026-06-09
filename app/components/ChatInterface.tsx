@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSupabaseChat } from '@/app/hooks/useSupabaseChat';
 import { Message } from '@/app/types';
+import { supabase } from '@/app/lib/supabase';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -19,6 +20,23 @@ export default function ChatInterface() {
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
+
+  // Handle OAuth callback code
+  useEffect(() => {
+    const handleAuthCode = async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get('code');
+      
+      if (code) {
+        // Exchange code for session
+        await supabase.auth.exchangeCodeForSession(code);
+        // Remove code from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    
+    handleAuthCode();
+  }, []);
   const {
     chats,
     currentChat,
