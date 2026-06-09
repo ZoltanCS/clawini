@@ -1,35 +1,38 @@
-import { get_encoding } from 'tiktoken';
-
-// Get encoder for cl100k_base (GPT-4/GPT-3.5 tokenizer - closest to Gemini)
-const encoder = get_encoding('cl100k_base');
+// Simple token estimation without native dependencies
+// Based on OpenAI's approach: ~4 characters per token on average for English/Hungarian
 
 export function countTokens(text: string): number {
   if (!text) return 0;
-  try {
-    const tokens = encoder.encode(text);
-    return tokens.length;
-  } catch {
-    // Fallback: estimate ~4 chars per token
-    return Math.ceil(text.length / 4);
-  }
+  
+  // For Hungarian and mixed text, use a more conservative estimate
+  // Hungarian tends to have longer words than English
+  const charCount = text.length;
+  
+  // Rough estimate: 
+  // - English: ~4 chars/token
+  // - Hungarian: ~3.5 chars/token (longer words)
+  // - Code: ~3 chars/token
+  // - Mixed: use conservative 3.2
+  
+  return Math.ceil(charCount / 3.2);
 }
 
 export function countMessageTokens(messages: Array<{role: string; content: string}>): number {
   let total = 0;
   
   for (const msg of messages) {
-    // Base tokens per message
-    total += 4; // <|start|>, role, content, <|end|>
+    // Base tokens per message (formatting tokens)
+    total += 4;
     
-    // Role tokens
-    total += countTokens(msg.role);
+    // Role tokens (usually 1-2 tokens)
+    total += 1;
     
     // Content tokens
     total += countTokens(msg.content);
   }
   
-  // Add tokens for the response
-  total += 3; // <|start|>assistant<|message|>
+  // Add tokens for the response (assistant prefix)
+  total += 3;
   
   return total;
 }

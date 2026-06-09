@@ -13,11 +13,9 @@
     "@supabase/supabase-js": "^2.43.0",
     "@types/uuid": "^9.0.8",
     "browser-image-compression": "^2.0.2",
-    "js-tiktoken": "^1.0.21",
     "next": "14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "tiktoken": "^1.0.22",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
