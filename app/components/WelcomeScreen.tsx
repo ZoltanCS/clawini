@@ -47,7 +47,8 @@ const suggestions = [
 ];
 
 export default function WelcomeScreen({ onSuggestionClick, currentChat }: WelcomeScreenProps) {
-  if (currentChat && currentChat.messages.length > 0) {
+  // Only show welcome screen when there's no active chat
+  if (currentChat) {
     return null;
   }
 
