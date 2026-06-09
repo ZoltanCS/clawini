@@ -56,19 +56,22 @@ export default function ChatInterface() {
 
   // Auto-generate chat title based on first message
   const generateChatTitle = useCallback(async (chatId: string, firstMessage: string) => {
+    console.log('Generating title for chat:', chatId, 'message:', firstMessage.substring(0, 50));
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
-            { role: 'user', content: `Csinálj egy rövid, lényegretörő címet (max 5 szó) ehhez a beszélgetéshez. Csak a címet írd, semmi mást.\n\nÜzenet: "${firstMessage}"` }
-          ],
-          enableSearch: false
+            { role: 'user', content: `Csinálj egy rövid, lényegretörő címet (max 5 szó) ehhez a beszélgetéshez. Csak a címet írd, semmi mást.\n\nÜzenet: "${firstMessage.substring(0, 200)}"` }
+          ]
         }),
       });
 
-      if (!response.ok) return;
+      if (!response.ok) {
+        console.error('Title generation failed:', response.status);
+        return;
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -101,8 +104,13 @@ export default function ChatInterface() {
 
       // Clean up title
       title = title.trim().replace(/^["']|["']$/g, '').replace(/^(Cím:|Title:)\s*/i, '');
+      console.log('Generated title:', title);
+      
       if (title && title.length > 3 && title.length < 100) {
         await updateChatTitle(chatId, title);
+        console.log('Title updated successfully');
+      } else {
+        console.log('Title too short or empty, skipping');
       }
     } catch (error) {
       console.error('Error generating title:', error);
@@ -239,21 +247,31 @@ export default function ChatInterface() {
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
 
+    // Load fresh messages from database
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', currentChatId)
+      .order('created_at', { ascending: true });
+
+    if (!messages) return;
+
     // Find the message to regenerate
-    const messageToRegenerate = currentMessages.find(m => m.id === messageId);
-    if (!messageToRegenerate || messageToRegenerate.role !== 'assistant') return;
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1 || messages[messageIndex].role !== 'assistant') return;
 
-    // Get all messages up to (but not including) this one
-    const messagesBefore = currentMessages.filter(m => 
-      new Date(m.created_at) < new Date(messageToRegenerate.created_at)
-    );
+    // Get all messages before this one
+    const messagesBefore = messages.slice(0, messageIndex);
 
-    // Delete the old message
+    // Delete the old message from database
     await supabase
       .from('messages')
       .delete()
       .eq('id', messageId)
       .eq('chat_id', currentChatId);
+
+    // Remove from local state immediately
+    setCurrentMessages(prev => prev.filter(m => m.id !== messageId));
 
     // Regenerate
     setIsLoading(true);
@@ -314,7 +332,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentChatId, currentMessages, user, addMessage]);
+  }, [currentChatId, user, addMessage]);
 
   if (isAuthLoading) {
     return (
