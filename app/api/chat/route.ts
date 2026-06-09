@@ -1,11 +1,11 @@
-export const runtime = 'edge';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
 
     if (!process.env.OPENROUTER_API_KEY) {
-      return new Response(JSON.stringify({ error: 'OpenRouter API key not configured' }), { status: 500 });
+      return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
     }
 
     // Format messages - keep it simple
@@ -51,10 +51,10 @@ export async function POST(req: Request) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenRouter error:', response.status, errorText);
-      return new Response(JSON.stringify({ 
+      return NextResponse.json({ 
         error: `API error: ${response.status}`,
         details: errorText 
-      }), { status: response.status });
+      }, { status: response.status });
     }
 
     return new Response(response.body, {
@@ -66,6 +66,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error('Chat API error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
