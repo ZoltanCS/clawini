@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         'X-Title': 'Gemini Chat',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.1-flash-lite',
+        model: 'google/gemini-3.1-flash-lite-preview',
         messages: messages.map((msg: any) => ({
           role: msg.role,
           content: msg.content,
