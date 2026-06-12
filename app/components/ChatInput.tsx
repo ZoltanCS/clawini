@@ -4,11 +4,10 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import imageCompression from 'browser-image-compression';
 
 interface ChatInputProps {
-  onSend: (message: string, imageUrl?: string | null) => void;
+  onSend: (message: string, imageUrls?: string[] | null) => void;
   isLoading: boolean;
   onImageUpload?: (file: File) => Promise<string | null>;
   placeholder?: string;
-  onPreviewChange?: (previewUrl: string | null) => void;
 }
 
 export default function ChatInput({ 
@@ -16,32 +15,34 @@ export default function ChatInput({
   isLoading, 
   onImageUpload,
   placeholder = "Üzenet írása...",
-  onPreviewChange,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !selectedImage) || isLoading || isUploading) return;
+    if ((!input.trim() && selectedImages.length === 0) || isLoading || isUploading) return;
 
-    let imageUrl: string | null = null;
-    
-    if (selectedImage && onImageUpload) {
+    let imageUrls: string[] | null = null;
+
+    if (selectedImages.length > 0 && onImageUpload) {
       setIsUploading(true);
-      imageUrl = await onImageUpload(selectedImage);
+      const urls = await Promise.all(
+        selectedImages.map(f => onImageUpload!(f))
+      );
+      imageUrls = urls.filter((url): url is string => url !== null);
+      if (imageUrls.length === 0) imageUrls = null;
       setIsUploading(false);
     }
 
-    onSend(input.trim(), imageUrl);
+    onSend(input.trim(), imageUrls);
     setInput('');
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (onPreviewChange) onPreviewChange(null);
+    setSelectedImages([]);
+    setImagePreviews([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -51,7 +52,6 @@ export default function ChatInput({
     }
   };
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -60,45 +60,49 @@ export default function ChatInput({
   }, [input]);
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Check if it's an image
-    if (!file.type.startsWith('image/')) {
-      alert('Kérlek, válassz egy képet!');
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      alert('Kérlek, válassz képeket!');
       return;
     }
 
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('A kép mérete maximum 5MB lehet!');
+    const oversized = imageFiles.filter(f => f.size > 5 * 1024 * 1024);
+    if (oversized.length > 0) {
+      alert('Egyes képek mérete meghaladja az 5MB-ot!');
       return;
     }
 
     try {
-      // Compress image
       const options = {
         maxSizeMB: 1,
         maxWidthOrHeight: 1920,
         useWebWorker: true,
       };
-      
-      const compressedFile = await imageCompression(file, options);
-      setSelectedImage(compressedFile);
-      
-      // Create preview
-      const previewUrl = URL.createObjectURL(compressedFile);
-      setImagePreview(previewUrl);
-      if (onPreviewChange) onPreviewChange(previewUrl);
+
+      const compressedFiles: File[] = [];
+      for (const file of imageFiles) {
+        const compressed = await imageCompression(file, options);
+        compressedFiles.push(compressed);
+      }
+
+      setSelectedImages(prev => [...prev, ...compressedFiles]);
+
+      const previewUrls = compressedFiles.map(f => URL.createObjectURL(f));
+      setImagePreviews(prev => [...prev, ...previewUrls]);
     } catch (error) {
-      console.error('Error compressing image:', error);
+      console.error('Error compressing images:', error);
     }
   };
 
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (onPreviewChange) onPreviewChange(null);
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -107,28 +111,30 @@ export default function ChatInput({
   return (
     <form onSubmit={handleSubmit} className="w-full">
       <div className="relative bg-white rounded-[28px] shadow-lg border border-gray-200 flex flex-col">
-        {/* Image Preview */}
-        {imagePreview && (
+        {imagePreviews.length > 0 && (
           <div className="p-3 pb-0">
-            <div className="relative inline-block">
-              <img 
-                src={imagePreview} 
-                alt="Preview" 
-                className="h-20 w-auto rounded-lg object-cover"
-              />
-              <button
-                type="button"
-                onClick={removeImage}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-              >
-                ×
-              </button>
+            <div className="flex gap-2 overflow-x-auto">
+              {imagePreviews.map((preview, index) => (
+                <div key={index} className="relative inline-block flex-shrink-0">
+                  <img 
+                    src={preview} 
+                    alt={`Preview ${index + 1}`} 
+                    className="h-20 w-auto rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         <div className="flex items-end gap-2 p-2">
-          {/* Plus/Attach button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -144,11 +150,11 @@ export default function ChatInput({
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handleFileSelect}
             className="hidden"
           />
 
-          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={input}
@@ -160,8 +166,7 @@ export default function ChatInput({
             className="flex-1 bg-transparent border-none outline-none resize-none py-2.5 px-1 text-gray-800 placeholder-gray-400 max-h-[120px] min-h-[44px]"
           />
 
-          {/* Send button or Voice button */}
-          {(input.trim() || selectedImage) && !isUploading ? (
+          {(input.trim() || selectedImages.length > 0) && !isUploading ? (
             <button
               type="submit"
               disabled={isLoading}

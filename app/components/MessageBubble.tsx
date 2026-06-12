@@ -10,6 +10,17 @@ interface MessageBubbleProps {
 export default function MessageBubble({ message, onRegenerate }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 
+  // Parse image URLs (single URL or JSON array)
+  const imageUrls: string[] = (() => {
+    if (!message.image_url) return [];
+    try {
+      const parsed = JSON.parse(message.image_url);
+      return Array.isArray(parsed) ? parsed : [message.image_url];
+    } catch {
+      return [message.image_url];
+    }
+  })();
+
   // Enhanced markdown formatting
   const formatContent = (content: string) => {
     let formatted = content;
@@ -94,15 +105,18 @@ export default function MessageBubble({ message, onRegenerate }: MessageBubblePr
           </div>
         )}
         
-        {/* Image */}
-        {message.image_url && (
-          <div className="mb-3">
-            <img 
-              src={message.image_url} 
-              alt="Uploaded" 
-              className="max-w-full max-h-64 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => window.open(message.image_url!, '_blank')}
-            />
+        {/* Images */}
+        {imageUrls.length > 0 && (
+          <div className={`mb-3 ${imageUrls.length > 1 ? 'grid grid-cols-2 gap-2' : ''}`}>
+            {imageUrls.map((url, i) => (
+              <img 
+                key={i}
+                src={url} 
+                alt={`Uploaded ${i + 1}`} 
+                className="max-w-full max-h-64 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(url, '_blank')}
+              />
+            ))}
           </div>
         )}
         

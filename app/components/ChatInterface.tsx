@@ -19,7 +19,6 @@ export default function ChatInterface() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
-  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [tokenCount, setTokenCount] = useState<number>(0);
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
@@ -117,7 +116,7 @@ export default function ChatInterface() {
     }
   }, [updateChatTitle]);
 
-  const handleSendMessage = useCallback(async (content: string, imageUrl?: string | null) => {
+  const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) {
       setIsAuthModalOpen(true);
       return;
@@ -141,10 +140,10 @@ export default function ChatInterface() {
       .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
 
-    // Build message history with the new user message
+    // Build message history with the new user message (include image_url for context)
     const allMessages = [
-      ...(freshMessages || []).map(m => ({ role: m.role, content: m.content })),
-      { role: 'user' as const, content, image_url: imageUrl }
+      ...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })),
+      { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined }
     ];
 
     // Update token count
@@ -158,8 +157,7 @@ export default function ChatInterface() {
     }
 
     // Add user message to database
-    await addMessage(chatId, 'user', content, imageUrl);
-    setPendingImagePreview(null);
+    await addMessage(chatId, 'user', content, imageUrls);
 
     try {
       const response = await fetch('/api/chat', {
@@ -427,23 +425,6 @@ export default function ChatInterface() {
             onRegenerate={handleRegenerate}
           />
 
-          {/* Pending Image Preview */}
-          {pendingImagePreview && (
-            <div className="px-4 py-0">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex justify-end mb-2">
-                  <div className="bg-gray-100 rounded-2xl p-3 max-w-[75%]">
-                    <img 
-                      src={pendingImagePreview} 
-                      alt="Preview" 
-                      className="max-w-full max-h-48 rounded-lg object-cover"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Feltöltésre vár...</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Input Area */}
@@ -453,7 +434,6 @@ export default function ChatInterface() {
               onSend={handleSendMessage}
               isLoading={isLoading}
               onImageUpload={handleImageUpload}
-              onPreviewChange={setPendingImagePreview}
               placeholder={user ? "Kérdezz bármit..." : "Bejelentkezés szükséges a chathez"}
             />
             <p className="text-center text-xs text-gray-400 mt-2">

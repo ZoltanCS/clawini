@@ -105,7 +105,17 @@ export function useSupabaseChat(user: User | null) {
     }
   };
 
-  const addMessage = async (chatId: string, role: 'user' | 'assistant', content: string, imageUrl?: string | null) => {
+  const addMessage = async (chatId: string, role: 'user' | 'assistant', content: string, imageUrls?: string[] | string | null) => {
+    let imageUrl: string | null = null;
+
+    if (imageUrls) {
+      if (Array.isArray(imageUrls)) {
+        imageUrl = imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls);
+      } else {
+        imageUrl = imageUrls;
+      }
+    }
+
     const { error } = await supabase
       .from('messages')
       .insert({

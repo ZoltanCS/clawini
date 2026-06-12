@@ -8,15 +8,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
     }
 
-    // Format messages - keep it simple
+    // Format messages - handle single or multiple image URLs
     const formattedMessages = messages.map((msg: any) => {
-      // If message has image_url, format as multimodal
       if (msg.image_url) {
+        let imageUrls: string[];
+        try {
+          const parsed = JSON.parse(msg.image_url);
+          imageUrls = Array.isArray(parsed) ? parsed : [msg.image_url];
+        } catch {
+          imageUrls = [msg.image_url];
+        }
+
         return {
           role: msg.role,
           content: [
-            { type: 'text', text: msg.content || 'Mit látsz ezen a képen?' },
-            { type: 'image_url', image_url: { url: msg.image_url } }
+            { type: 'text', text: msg.content || 'Mit látsz ezeken a képeken?' },
+            ...imageUrls.map(url => ({ type: 'image_url', image_url: { url } }))
           ]
         };
       }

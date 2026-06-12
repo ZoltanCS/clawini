@@ -1,7 +1,5 @@
 -- Supabase Database Schema for Gemini Chatbot
-
--- Enable Row Level Security
-alter table auth.users enable row level security;
+-- Futtasd le az SQL Editor-ban!
 
 -- Create chats table
 CREATE TABLE IF NOT EXISTS public.chats (
@@ -46,31 +44,26 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can only see their own chats"
-    ON public.chats
-    FOR SELECT
+    ON public.chats FOR SELECT
     USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can only insert their own chats"
-    ON public.chats
-    FOR INSERT
+    ON public.chats FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can only update their own chats"
-    ON public.chats
-    FOR UPDATE
+    ON public.chats FOR UPDATE
     USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can only delete their own chats"
-    ON public.chats
-    FOR DELETE
+    ON public.chats FOR DELETE
     USING (auth.uid() = user_id);
 
 -- Messages policies
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can see messages from their chats"
-    ON public.messages
-    FOR SELECT
+    ON public.messages FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM public.chats
@@ -80,8 +73,7 @@ CREATE POLICY "Users can see messages from their chats"
     );
 
 CREATE POLICY "Users can insert messages to their chats"
-    ON public.messages
-    FOR INSERT
+    ON public.messages FOR INSERT
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.chats
@@ -91,8 +83,7 @@ CREATE POLICY "Users can insert messages to their chats"
     );
 
 CREATE POLICY "Users can delete messages from their chats"
-    ON public.messages
-    FOR DELETE
+    ON public.messages FOR DELETE
     USING (
         EXISTS (
             SELECT 1 FROM public.chats
@@ -105,46 +96,40 @@ CREATE POLICY "Users can delete messages from their chats"
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can see their own profile"
-    ON public.profiles
-    FOR SELECT
+    ON public.profiles FOR SELECT
     USING (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile"
-    ON public.profiles
-    FOR UPDATE
+    ON public.profiles FOR UPDATE
     USING (auth.uid() = id);
 
 CREATE POLICY "Users can insert their own profile"
-    ON public.profiles
-    FOR INSERT
+    ON public.profiles FOR INSERT
     WITH CHECK (auth.uid() = id);
 
 -- Storage policies
 CREATE POLICY "Users can upload images to their folder"
-    ON storage.objects
-    FOR INSERT
+    ON storage.objects FOR INSERT
     WITH CHECK (
         bucket_id = 'chat-images' AND
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
 CREATE POLICY "Users can see their own images"
-    ON storage.objects
-    FOR SELECT
+    ON storage.objects FOR SELECT
     USING (
         bucket_id = 'chat-images' AND
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
 CREATE POLICY "Users can delete their own images"
-    ON storage.objects
-    FOR DELETE
+    ON storage.objects FOR DELETE
     USING (
         bucket_id = 'chat-images' AND
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
--- Functions
+-- Function to create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
