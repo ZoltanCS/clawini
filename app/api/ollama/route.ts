@@ -8,6 +8,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Hiányzó Ollama URL' }, { status: 400 });
     }
 
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API kulcs nincs beállítva' }, { status: 500 });
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    };
+
     if (action === 'pull') {
       if (!model) {
         return NextResponse.json({ error: 'Hiányzó modell név' }, { status: 400 });
@@ -15,7 +25,7 @@ export async function POST(req: NextRequest) {
 
       const response = await fetch(`${url.replace(/\/$/, '')}/api/pull`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ name: model }),
       });
 
@@ -37,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'tags') {
-      const response = await fetch(`${url.replace(/\/$/, '')}/api/tags`);
+      const response = await fetch(`${url.replace(/\/$/, '')}/api/tags`, { headers });
       
       if (!response.ok) {
         return NextResponse.json({ error: 'Nem sikerült lekérni a modelleket' }, { status: response.status });

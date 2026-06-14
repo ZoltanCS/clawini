@@ -52,9 +52,17 @@ export async function POST(req: NextRequest) {
       }));
       ollamaMessages.unshift(formattedMessages[0]); // system prompt
 
+      const ollamaApiKey = process.env.DEEPSEEK_API_KEY;
+      if (!ollamaApiKey) {
+        return NextResponse.json({ error: 'API kulcs nincs beállítva' }, { status: 500 });
+      }
+
       const ollamaResponse = await fetch(`${ollamaUrl.replace(/\/$/, '')}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${ollamaApiKey}`,
+        },
         body: JSON.stringify({
           model: modelName,
           messages: ollamaMessages,
