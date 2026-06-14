@@ -38,9 +38,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (model === 'deepseek') {
+      if (!process.env.DEEPSEEK_API_KEY) {
+        return NextResponse.json({ error: 'DeepSeek API key not configured' }, { status: 500 });
+      }
+
       const response = await fetch(DEEPSEEK_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        },
         body: JSON.stringify({
           model: '',
           messages: formattedMessages,
