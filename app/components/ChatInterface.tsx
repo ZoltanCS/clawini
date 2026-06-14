@@ -238,7 +238,8 @@ export default function ChatInterface() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.details || errorBody.error || `Hiba: ${response.status}`);
       }
 
       const reader = response.body?.getReader();
@@ -286,7 +287,8 @@ export default function ChatInterface() {
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
-      await addMessage(chatId, 'assistant', 'Sajnos hiba történt. Kérlek, próbáld újra.');
+      const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
+      await addMessage(chatId, 'assistant', `Hiba: ${msg}`);
     } finally {
       setIsLoading(false);
     }

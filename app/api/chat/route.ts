@@ -197,6 +197,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'DeepSeek API key not configured' }, { status: 500 });
       }
 
+      // Strip images — DeepSeek endpoint is text-only
+      const deepSeekMessages = formattedMessages.map((msg: any) => ({
+        role: msg.role,
+        content: Array.isArray(msg.content)
+          ? msg.content.find((p: any) => p.type === 'text')?.text || ''
+          : msg.content,
+      }));
+
       const response = await fetch(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
@@ -205,7 +213,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           model: '',
-          messages: formattedMessages,
+          messages: deepSeekMessages,
           temperature: 0.7,
           max_tokens: 4096,
           stream: true,
