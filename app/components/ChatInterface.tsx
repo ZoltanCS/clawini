@@ -272,6 +272,11 @@ export default function ChatInterface() {
       }
 
       setStreamingContent('');
+      const totalTokens = countMessageTokens(
+        [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }],
+        selectedModel
+      );
+      setTokenCount(totalTokens);
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
@@ -395,6 +400,11 @@ export default function ChatInterface() {
       }
 
       setStreamingContent('');
+      const totalTokens = countMessageTokens(
+        [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }],
+        selectedModel
+      );
+      setTokenCount(totalTokens);
       await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
