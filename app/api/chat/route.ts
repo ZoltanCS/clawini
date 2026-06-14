@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const DEEPSEEK_URL = 'https://8000-dep-01kv3w4efm8x4gfsb8mrbrgbrf-d.cloudspaces.litng.ai/v1/chat/completions';
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json();
-
-    if (!process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
-    }
+    const { messages, model } = await req.json();
 
     // Format messages - handle single or multiple image URLs
     const formattedMessages = messages.map((msg: any) => {
@@ -27,18 +25,52 @@ export async function POST(req: NextRequest) {
           ]
         };
       }
-      // Regular text message
       return { 
         role: msg.role, 
         content: msg.content 
       };
     });
 
-    // Add short system prompt at the beginning
+    // Add system prompt
     formattedMessages.unshift({
       role: 'system',
       content: 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.'
     });
+
+    if (model === 'deepseek') {
+      const response = await fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: '',
+          messages: formattedMessages,
+          temperature: 0.7,
+          max_tokens: 4096,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return NextResponse.json({
+          error: `DeepSeek API error: ${response.status}`,
+          details: errorText
+        }, { status: response.status });
+      }
+
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    // Default: OpenRouter Gemini
+    if (!process.env.OPENROUTER_API_KEY) {
+      return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
+    }
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -57,9 +89,8 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenRouter error:', response.status, errorText);
       return NextResponse.json({ 
-        error: `API error: ${response.status}`,
+        error: `OpenRouter error: ${response.status}`,
         details: errorText 
       }, { status: response.status });
     }

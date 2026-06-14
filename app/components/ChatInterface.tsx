@@ -22,6 +22,16 @@ export default function ChatInterface() {
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [tokenCount, setTokenCount] = useState<number>(0);
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
+  const [selectedModel, setSelectedModel] = useState<'gemini' | 'deepseek'>('gemini');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+
+  // Load model preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedModel');
+    if (saved === 'gemini' || saved === 'deepseek') {
+      setSelectedModel(saved);
+    }
+  }, []);
   
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
@@ -163,7 +173,7 @@ export default function ChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModel }),
       });
 
       if (!response.ok) {
@@ -212,7 +222,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentChatId, createNewChat, addMessage]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModel]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
@@ -241,6 +251,12 @@ export default function ChatInterface() {
     await signOut();
     setCurrentChatId(null);
   }, [signOut, setCurrentChatId]);
+
+  const handleModelChange = useCallback((model: 'gemini' | 'deepseek') => {
+    setSelectedModel(model);
+    localStorage.setItem('selectedModel', model);
+    setIsModelDropdownOpen(false);
+  }, []);
 
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
@@ -284,7 +300,7 @@ export default function ChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModel }),
       });
 
       if (!response.ok) throw new Error('Failed to get response');
@@ -330,7 +346,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentChatId, user, addMessage]);
+  }, [currentChatId, user, addMessage, selectedModel]);
 
   if (isAuthLoading) {
     return (
@@ -371,11 +387,37 @@ export default function ChatInterface() {
               </svg>
             </button>
             
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-800">Gemini Flash Lite</span>
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+            <div className="relative">
+              <button
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <span className="font-medium text-gray-800">
+                  {selectedModel === 'gemini' ? 'Gemini Flash Lite' : 'DeepSeek 8B'}
+                </span>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {isModelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px] overflow-hidden">
+                    <button
+                      onClick={() => handleModelChange('gemini')}
+                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedModel === 'gemini' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'}`}
+                    >
+                      Gemini Flash Lite
+                    </button>
+                    <button
+                      onClick={() => handleModelChange('deepseek')}
+                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedModel === 'deepseek' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'}`}
+                    >
+                      DeepSeek 8B
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
             
             {/* Token Counter */}
@@ -437,7 +479,7 @@ export default function ChatInterface() {
               placeholder={user ? "Kérdezz bármit..." : "Bejelentkezés szükséges a chathez"}
             />
             <p className="text-center text-xs text-gray-400 mt-2">
-              A Gemini hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
+              A {selectedModel === 'gemini' ? 'Gemini' : 'DeepSeek'} hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
             </p>
           </div>
         </div>
