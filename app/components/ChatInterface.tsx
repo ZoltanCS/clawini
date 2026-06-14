@@ -212,7 +212,7 @@ export default function ChatInterface() {
       { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined }
     ];
 
-    const tokens = countMessageTokens(allMessages);
+    const tokens = countMessageTokens(allMessages, selectedModel);
     setTokenCount(tokens);
 
     if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
