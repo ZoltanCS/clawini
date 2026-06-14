@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/app/lib/supabase';
 import { User } from '@supabase/supabase-js';
 
@@ -13,11 +13,14 @@ interface SettingsModalProps {
 interface OllamaModel {
   name: string;
   enabled: boolean;
+  contextLength: number;
 }
 
 const OLLAMA_URL_KEY = 'ollamaUrl';
 const OLLAMA_MODELS_KEY = 'ollamaModels';
+const SYSTEM_PROMPT_KEY = 'systemPrompt';
 const DEFAULT_OLLAMA_URL = 'https://11434-dep-01kv3yjwybk1665yyxj7s0g7r7-d.cloudspaces.litng.ai/';
+const DEFAULT_SYSTEM_PROMPT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
 
 export default function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
@@ -33,12 +36,14 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
   const [ollamaUrl, setOllamaUrl] = useState(DEFAULT_OLLAMA_URL);
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
-  const [downloadingModel, setDownloadingModel] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [pullInput, setPullInput] = useState('');
   const [pullError, setPullError] = useState('');
-  const [pullSuccess, setPullSuccess] = useState('');
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [pullProgress, setPullProgress] = useState<{ status: string; progress: number }[]>([]);
+  const [isPulling, setIsPulling] = useState(false);
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
   const [isFetchingTags, setIsFetchingTags] = useState(false);
+  const pullSourceRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,22 +64,24 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
         setOllamaModels(JSON.parse(savedModels));
       } catch {}
     }
+
+    const savedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
+    if (savedPrompt) setSystemPrompt(savedPrompt);
   };
 
-  const saveOllamaConfig = useCallback((url: string, models: OllamaModel[]) => {
+  const saveOllamaConfig = useCallback((url: string, models: OllamaModel[], prompt: string) => {
     localStorage.setItem(OLLAMA_URL_KEY, url);
     localStorage.setItem(OLLAMA_MODELS_KEY, JSON.stringify(models));
+    localStorage.setItem(SYSTEM_PROMPT_KEY, prompt);
   }, []);
 
   const loadUserProfile = async () => {
     if (!user) return;
-
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
-
     if (data) {
       setSettings(prev => ({
         ...prev,
@@ -89,9 +96,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
   const handleSave = async () => {
     if (!user) return;
-
     setIsLoading(true);
-
     const { error } = await supabase
       .from('profiles')
       .upsert({
@@ -103,19 +108,15 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
         auto_save: settings.autoSave,
         updated_at: new Date().toISOString(),
       });
-
     setIsLoading(false);
-
     if (!error) {
-      saveOllamaConfig(ollamaUrl, ollamaModels);
+      saveOllamaConfig(ollamaUrl, ollamaModels, systemPrompt);
       onClose();
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Biztosan törölni szeretnéd a fiókodat? Ez nem visszavonható!')) {
-      return;
-    }
+    if (!confirm('Biztosan törölni szeretnéd a fiókodat? Ez nem visszavonható!')) return;
     await supabase.from('chats').delete().eq('user_id', user?.id);
     await supabase.auth.admin.deleteUser(user?.id || '');
   };
@@ -124,9 +125,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     const modelName = pullInput.trim();
     if (!modelName) return;
 
-    setDownloadingModel(modelName);
+    setIsPulling(true);
     setPullError('');
-    setPullSuccess('');
+    setPullProgress([]);
 
     try {
       const res = await fetch('/api/ollama', {
@@ -135,41 +136,76 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
         body: JSON.stringify({ url: ollamaUrl, action: 'pull', model: modelName }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json();
         setPullError(data.error || 'Ismeretlen hiba');
+        setIsPulling(false);
         return;
       }
 
-      setPullSuccess(`"${modelName}" sikeresen letöltve!`);
-      setPullInput('');
-      // Add to enabled models if not already there
-      setOllamaModels(prev => {
-        if (prev.some(m => m.name === modelName)) return prev;
-        return [...prev, { name: modelName, enabled: true }];
-      });
+      const reader = res.body?.getReader();
+      if (!reader) {
+        setPullError('Nem sikerült olvasni a választ');
+        setIsPulling(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let hasSuccess = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            hasSuccess = true;
+            continue;
+          }
+          try {
+            const json = JSON.parse(data);
+            setPullProgress(prev => [...prev, {
+              status: json.status || '',
+              progress: json.completed && json.total ? (json.completed / json.total) * 100 : -1,
+            }]);
+            if (json.status === 'success') hasSuccess = true;
+          } catch {}
+        }
+      }
+
+      setIsPulling(false);
+
+      if (hasSuccess) {
+        setPullInput('');
+        setOllamaModels(prev => {
+          if (prev.some(m => m.name === modelName)) return prev;
+          return [...prev, { name: modelName, enabled: true, contextLength: 4096 }];
+        });
+      }
     } catch (err) {
       setPullError('Nem sikerült csatlakozni az Ollama szerverhez');
-    } finally {
-      setDownloadingModel('');
+      setIsPulling(false);
     }
   };
 
   const handleFetchTags = async () => {
     setIsFetchingTags(true);
-
     try {
       const res = await fetch('/api/ollama', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: ollamaUrl, action: 'tags' }),
       });
-
       const data = await res.json();
-
       if (res.ok && data.models) {
-        setAvailableModels(data.models.map((m: any) => m.name));
+        setAvailableModels(data.models);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
@@ -179,13 +215,20 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   };
 
   const toggleOllamaModel = (name: string) => {
-    setOllamaModels(prev =>
-      prev.map(m => m.name === name ? { ...m, enabled: !m.enabled } : m)
-    );
+    setOllamaModels(prev => prev.map(m => m.name === name ? { ...m, enabled: !m.enabled } : m));
   };
 
   const removeOllamaModel = (name: string) => {
     setOllamaModels(prev => prev.filter(m => m.name !== name));
+  };
+
+  const updateContextLength = (name: string, contextLength: number) => {
+    setOllamaModels(prev => prev.map(m => m.name === name ? { ...m, contextLength } : m));
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
   };
 
   if (!isOpen) return null;
@@ -200,7 +243,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-2xl font-semibold text-gray-800">Beállítások</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
@@ -211,7 +253,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar Tabs */}
           <div className="w-48 border-r bg-gray-50 p-4 space-y-1">
             {tabs.map((tab) => (
               <button
@@ -227,7 +268,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             ))}
           </div>
 
-          {/* Content */}
           <div className="flex-1 p-6 overflow-y-auto">
             {activeTab === 'general' && (
               <div className="space-y-6">
@@ -242,7 +282,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     <option value="en">English</option>
                   </select>
                 </div>
-
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium text-gray-800">Értesítések</div>
@@ -250,16 +289,11 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, notifications: !settings.notifications })}
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      settings.notifications ? 'bg-blue-500' : 'bg-gray-300'
-                    }`}
+                    className={`w-12 h-6 rounded-full transition-colors ${settings.notifications ? 'bg-blue-500' : 'bg-gray-300'}`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                      settings.notifications ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${settings.notifications ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
-
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium text-gray-800">Automatikus mentés</div>
@@ -267,13 +301,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, autoSave: !settings.autoSave })}
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      settings.autoSave ? 'bg-blue-500' : 'bg-gray-300'
-                    }`}
+                    className={`w-12 h-6 rounded-full transition-colors ${settings.autoSave ? 'bg-blue-500' : 'bg-gray-300'}`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                      settings.autoSave ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${settings.autoSave ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
               </div>
@@ -291,25 +321,13 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     placeholder="Add meg a neved"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={user?.email || ''}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  />
+                  <input type="email" value={user?.email || ''} disabled className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
                 </div>
-
                 <div className="pt-6 border-t">
                   <h3 className="text-red-600 font-medium mb-2">Veszélyes zóna</h3>
-                  <button
-                    onClick={handleDeleteAccount}
-                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Fiók törlése
-                  </button>
+                  <button onClick={handleDeleteAccount} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors">Fiók törlése</button>
                 </div>
               </div>
             )}
@@ -323,20 +341,10 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       <button
                         key={theme}
                         onClick={() => setSettings({ ...settings, theme })}
-                        className={`p-4 border-2 rounded-xl text-center transition-colors ${
-                          settings.theme === theme ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        className={`p-4 border-2 rounded-xl text-center transition-colors ${settings.theme === theme ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
                       >
-                        <div className="text-2xl mb-2">
-                          {theme === 'light' && '☀'}
-                          {theme === 'dark' && '🌙'}
-                          {theme === 'system' && '💻'}
-                        </div>
-                        <div className="text-sm font-medium">
-                          {theme === 'light' && 'Világos'}
-                          {theme === 'dark' && 'Sötét'}
-                          {theme === 'system' && 'Rendszer'}
-                        </div>
+                        <div className="text-2xl mb-2">{theme === 'light' ? '☀' : theme === 'dark' ? '🌙' : '💻'}</div>
+                        <div className="text-sm font-medium">{theme === 'light' ? 'Világos' : theme === 'dark' ? 'Sötét' : 'Rendszer'}</div>
                       </button>
                     ))}
                   </div>
@@ -346,11 +354,21 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
             {activeTab === 'models' && (
               <div className="space-y-6">
+                {/* System Prompt */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rendszer prompt</label>
+                  <textarea
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Az AI asszisztens személyiségét és viselkedését határozza meg</p>
+                </div>
+
                 {/* Ollama URL */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ollama API URL
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Ollama API URL</label>
                   <input
                     type="text"
                     value={ollamaUrl}
@@ -363,40 +381,51 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
                 {/* Pull model */}
                 <div className="pt-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Modell letöltése
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Modell letöltése</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={pullInput}
                       onChange={(e) => setPullInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handlePullModel()}
+                      onKeyDown={(e) => e.key === 'Enter' && !isPulling && handlePullModel()}
                       className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="pl. llama3.2, mistral, qwen2.5..."
+                      placeholder="pl. llama3.2, mistral, qwen3-next:80b..."
+                      disabled={isPulling}
                     />
                     <button
                       onClick={handlePullModel}
-                      disabled={!pullInput.trim() || !!downloadingModel}
+                      disabled={!pullInput.trim() || isPulling}
                       className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-medium rounded-lg transition-colors"
                     >
-                      {downloadingModel ? 'Letöltés...' : 'Letöltés'}
+                      {isPulling ? 'Letöltés...' : 'Letöltés'}
                     </button>
                   </div>
-                  {pullError && (
-                    <p className="text-sm text-red-500 mt-1">{pullError}</p>
-                  )}
-                  {pullSuccess && (
-                    <p className="text-sm text-green-600 mt-1">{pullSuccess}</p>
+                  {pullError && <p className="text-sm text-red-500 mt-1">{pullError}</p>}
+
+                  {/* Pull progress */}
+                  {pullProgress.length > 0 && (
+                    <div className="mt-3 space-y-1.5 max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                      {pullProgress.map((item, i) => (
+                        <div key={i}>
+                          <div className="flex justify-between text-xs text-gray-600 mb-0.5">
+                            <span className="truncate">{item.status}</span>
+                            {item.progress >= 0 && <span>{Math.round(item.progress)}%</span>}
+                          </div>
+                          {item.progress >= 0 && (
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.max(2, item.progress)}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
                 {/* Enabled models list */}
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Aktív modellek
-                    </label>
+                    <label className="text-sm font-medium text-gray-700">Aktív modellek</label>
                     <button
                       onClick={handleFetchTags}
                       disabled={isFetchingTags}
@@ -410,58 +439,85 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     <p className="text-sm text-gray-400">Még nincs letöltött modell</p>
                   ) : (
                     <div className="space-y-2">
-                      {ollamaModels.map((model) => (
-                        <div key={model.name} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => toggleOllamaModel(model.name)}
-                              className={`w-10 h-6 rounded-full transition-colors ${
-                                model.enabled ? 'bg-blue-500' : 'bg-gray-300'
-                              }`}
-                            >
-                              <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                                model.enabled ? 'translate-x-5' : 'translate-x-1'
-                              }`} />
-                            </button>
-                            <span className="text-sm font-medium text-gray-800">{model.name}</span>
+                      {ollamaModels.map((model) => {
+                        const tagInfo = availableModels.find((m: any) => m.name === model.name);
+                        return (
+                          <div key={model.name} className="p-3 border border-gray-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => toggleOllamaModel(model.name)}
+                                  className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${model.enabled ? 'bg-blue-500' : 'bg-gray-300'}`}
+                                >
+                                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${model.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                                </button>
+                                <div>
+                                  <span className="text-sm font-medium text-gray-800">{model.name}</span>
+                                  {tagInfo?.details && (
+                                    <div className="text-xs text-gray-400 mt-0.5">
+                                      {tagInfo.details.parameter_size && <span>{tagInfo.details.parameter_size} </span>}
+                                      {tagInfo.details.quantization_level && <span>· {tagInfo.details.quantization_level} </span>}
+                                      {tagInfo.size && <span>· {formatSize(tagInfo.size)}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => removeOllamaModel(model.name)}
+                                className="text-xs text-red-500 hover:text-red-600 font-medium flex-shrink-0"
+                              >
+                                Eltávolítás
+                              </button>
+                            </div>
+                            {/* Context Length */}
+                            {model.enabled && (
+                              <div className="mt-2 ml-12 flex items-center gap-2">
+                                <label className="text-xs text-gray-500">Kontextus:</label>
+                                <select
+                                  value={model.contextLength}
+                                  onChange={(e) => updateContextLength(model.name, Number(e.target.value))}
+                                  className="text-xs px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                >
+                                  <option value={2048}>2K</option>
+                                  <option value={4096}>4K</option>
+                                  <option value={8192}>8K</option>
+                                  <option value={16384}>16K</option>
+                                  <option value={32768}>32K</option>
+                                  <option value={65536}>64K</option>
+                                  <option value={131072}>128K</option>
+                                  <option value={262144}>256K</option>
+                                </select>
+                              </div>
+                            )}
                           </div>
-                          <button
-                            onClick={() => removeOllamaModel(model.name)}
-                            className="text-xs text-red-500 hover:text-red-600 font-medium"
-                          >
-                            Eltávolítás
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
-                {/* Available models on server */}
+                {/* Available on server */}
                 {availableModels.length > 0 && (
                   <div className="pt-2">
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Elérhető modellek a szerveren
-                    </label>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Elérhető modellek a szerveren</label>
                     <div className="flex flex-wrap gap-2">
-                      {availableModels.map((name) => {
-                        const isAdded = ollamaModels.some(m => m.name === name);
+                      {availableModels.map((m: any) => {
+                        const isAdded = ollamaModels.some(om => om.name === m.name);
                         return (
                           <button
-                            key={name}
+                            key={m.name}
                             onClick={() => {
                               if (!isAdded) {
-                                setOllamaModels(prev => [...prev, { name, enabled: true }]);
+                                setOllamaModels(prev => [...prev, { name: m.name, enabled: true, contextLength: 4096 }]);
                               }
                             }}
                             disabled={isAdded}
                             className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                              isAdded
-                                ? 'border-green-300 bg-green-50 text-green-600'
-                                : 'border-gray-300 hover:border-blue-400 text-gray-700 hover:text-blue-600'
+                              isAdded ? 'border-green-300 bg-green-50 text-green-600' : 'border-gray-300 hover:border-blue-400 text-gray-700 hover:text-blue-600'
                             }`}
+                            title={m.details ? `${m.details.parameter_size || ''} ${m.details.quantization_level || ''}` : ''}
                           >
-                            {name} {isAdded ? '✓' : '+'}
+                            {m.name} {isAdded ? '✓' : '+'}
                           </button>
                         );
                       })}
@@ -474,7 +530,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             <div className="mt-8 flex justify-end gap-2">
               <button
                 onClick={() => {
-                  saveOllamaConfig(ollamaUrl, ollamaModels);
+                  saveOllamaConfig(ollamaUrl, ollamaModels, systemPrompt);
                   onClose();
                 }}
                 className="px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"

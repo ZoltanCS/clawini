@@ -23,32 +23,66 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Hiányzó modell név' }, { status: 400 });
       }
 
-      const response = await fetch(`${url.replace(/\/$/, '')}/api/pull`, {
+      const ollamaResponse = await fetch(`${url.replace(/\/$/, '')}/api/pull`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ name: model }),
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        return NextResponse.json({ error: `Hiba a modell letöltésekor: ${text}` }, { status: response.status });
+      if (!ollamaResponse.ok) {
+        const text = await ollamaResponse.text();
+        return NextResponse.json({ error: `Hiba a modell letöltésekor: ${text}` }, { status: ollamaResponse.status });
       }
 
-      const reader = response.body?.getReader();
-      if (reader) {
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-        }
-      }
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const reader = ollamaResponse.body?.getReader();
+          if (!reader) {
+            controller.enqueue(encoder.encode('data: {"error":"No response body"}\n\n'));
+            controller.close();
+            return;
+          }
+          const decoder = new TextDecoder();
+          let buffer = '';
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                if (buffer.trim()) {
+                  controller.enqueue(encoder.encode(`data: ${buffer}\n\n`));
+                }
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                controller.close();
+                break;
+              }
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (line.trim()) {
+                  controller.enqueue(encoder.encode(`data: ${line}\n\n`));
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Stream error:', e);
+            controller.error(e);
+          }
+        },
+      });
 
-      return NextResponse.json({ success: true });
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
+      });
     }
 
     if (action === 'tags') {
       const response = await fetch(`${url.replace(/\/$/, '')}/api/tags`, { headers });
-      
+
       if (!response.ok) {
         return NextResponse.json({ error: 'Nem sikerült lekérni a modelleket' }, { status: response.status });
       }

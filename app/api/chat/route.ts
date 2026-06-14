@@ -4,7 +4,7 @@ const DEEPSEEK_URL = 'https://8000-dep-01kv3w4efm8x4gfsb8mrbrgbrf-d.cloudspaces.
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, ollamaUrl } = await req.json();
+    const { messages, model, ollamaUrl, systemPrompt, contextLength } = await req.json();
 
     // Format messages - handle single or multiple image URLs
     const formattedMessages = messages.map((msg: any) => {
@@ -31,10 +31,12 @@ export async function POST(req: NextRequest) {
       };
     });
 
+    const systemContent = systemPrompt || 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
+
     // Add system prompt
     formattedMessages.unshift({
       role: 'system',
-      content: 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.'
+      content: systemContent,
     });
 
     // Handle Ollama models
@@ -58,17 +60,22 @@ export async function POST(req: NextRequest) {
       }
 
       // Non-streaming request to Ollama for reliability
+      const ollamaBody: any = {
+        model: modelName,
+        messages: ollamaMessages,
+        stream: false,
+      };
+      if (contextLength) {
+        ollamaBody.options = { num_ctx: contextLength };
+      }
+
       const ollamaResponse = await fetch(`${ollamaUrl.replace(/\/$/, '')}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${ollamaApiKey}`,
         },
-        body: JSON.stringify({
-          model: modelName,
-          messages: ollamaMessages,
-          stream: false,
-        }),
+        body: JSON.stringify(ollamaBody),
       });
 
       if (!ollamaResponse.ok) {

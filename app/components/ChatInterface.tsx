@@ -169,6 +169,21 @@ export default function ChatInterface() {
   }, [updateChatTitle]);
 
   const getOllamaUrl = () => localStorage.getItem(OLLAMA_URL_KEY) || '';
+  const getSystemPrompt = () => localStorage.getItem('systemPrompt') || '';
+
+  const getContextLength = (modelId: string) => {
+    if (!modelId.startsWith('ollama:')) return undefined;
+    const modelName = modelId.replace('ollama:', '');
+    try {
+      const saved = localStorage.getItem(OLLAMA_MODELS_KEY);
+      if (saved) {
+        const models = JSON.parse(saved) as { name: string; contextLength: number }[];
+        const found = models.find(m => m.name === modelName);
+        return found?.contextLength;
+      }
+    } catch {}
+    return undefined;
+  };
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) {
@@ -209,8 +224,10 @@ export default function ChatInterface() {
 
     try {
       const body: any = { messages: allMessages, model: selectedModel };
+      body.systemPrompt = getSystemPrompt();
       if (isOllamaModel(selectedModel)) {
         body.ollamaUrl = getOllamaUrl();
+        body.contextLength = getContextLength(selectedModel);
       }
 
       const response = await fetch('/api/chat', {
@@ -332,8 +349,10 @@ export default function ChatInterface() {
 
     try {
       const body: any = { messages: allMessages, model: selectedModel };
+      body.systemPrompt = getSystemPrompt();
       if (isOllamaModel(selectedModel)) {
         body.ollamaUrl = getOllamaUrl();
+        body.contextLength = getContextLength(selectedModel);
       }
 
       const response = await fetch('/api/chat', {
