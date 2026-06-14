@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const DEEPSEEK_URL = 'https://8000-dep-01kv3w4efm8x4gfsb8mrbrgbrf-d.cloudspaces.litng.ai/v1/chat/completions';
 
+const SYSTEM_PROMPT_DEFAULT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
+
+async function imageUrlToBase64(url: string): Promise<string> {
+  const res = await fetch(url);
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  const type = res.headers.get('content-type') || 'image/jpeg';
+  return `data:${type};base64,${base64}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, model, ollamaUrl, systemPrompt, contextLength } = await req.json();
+
+    const systemContent = systemPrompt || SYSTEM_PROMPT_DEFAULT;
 
     // Format messages - handle single or multiple image URLs
     const formattedMessages = messages.map((msg: any) => {
@@ -25,21 +37,12 @@ export async function POST(req: NextRequest) {
           ]
         };
       }
-      return {
-        role: msg.role,
-        content: msg.content
-      };
+      return { role: msg.role, content: msg.content };
     });
 
-    const systemContent = systemPrompt || 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
+    formattedMessages.unshift({ role: 'system', content: systemContent });
 
-    // Add system prompt
-    formattedMessages.unshift({
-      role: 'system',
-      content: systemContent,
-    });
-
-    // Handle Ollama models
+    // ---------- Ollama ----------
     if (model?.startsWith('ollama:')) {
       const modelName = model.replace('ollama:', '');
 
@@ -47,19 +50,45 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Ollama URL nincs beállítva' }, { status: 400 });
       }
 
-      // Use plain text messages for Ollama (no image support)
-      const ollamaMessages = messages.map((msg: any) => ({
-        role: msg.role,
-        content: msg.content || ''
-      }));
-      ollamaMessages.unshift(formattedMessages[0]); // system prompt
-
       const ollamaApiKey = process.env.DEEPSEEK_API_KEY;
       if (!ollamaApiKey) {
         return NextResponse.json({ error: 'API kulcs nincs beállítva' }, { status: 500 });
       }
 
-      // Non-streaming request to Ollama for reliability
+      // Build Ollama-format messages with optional images (base64)
+      const ollamaMessages: any[] = [];
+      for (const msg of messages) {
+        const entry: any = { role: msg.role, content: msg.content || '' };
+
+        // Handle images for Ollama vision models
+        if (msg.image_url) {
+          let imageUrls: string[];
+          try {
+            const parsed = JSON.parse(msg.image_url);
+            imageUrls = Array.isArray(parsed) ? parsed : [msg.image_url];
+          } catch {
+            imageUrls = [msg.image_url];
+          }
+
+          const images: string[] = [];
+          for (const url of imageUrls) {
+            try {
+              const b64 = await imageUrlToBase64(url);
+              images.push(b64);
+            } catch (e) {
+              console.error('Failed to fetch image for Ollama:', e);
+            }
+          }
+          if (images.length > 0) {
+            entry.images = images;
+          }
+        }
+
+        ollamaMessages.push(entry);
+      }
+      // Add system prompt as first message
+      ollamaMessages.unshift({ role: 'system', content: systemContent });
+
       const ollamaBody: any = {
         model: modelName,
         messages: ollamaMessages,
@@ -89,7 +118,6 @@ export async function POST(req: NextRequest) {
       const data = await ollamaResponse.json();
       const content = data.message?.content || '';
 
-      // Return as SSE so client still gets streaming experience
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {
@@ -108,7 +136,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Handle DeepSeek
+    // ---------- DeepSeek ----------
     if (model === 'deepseek') {
       if (!process.env.DEEPSEEK_API_KEY) {
         return NextResponse.json({ error: 'DeepSeek API key not configured' }, { status: 500 });
@@ -146,7 +174,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Default: OpenRouter Gemini
+    // ---------- Gemini (default) ----------
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
     }
@@ -163,6 +191,7 @@ export async function POST(req: NextRequest) {
         model: 'google/gemini-3.1-flash-lite-preview',
         messages: formattedMessages,
         stream: true,
+        plugins: [{ id: 'web' }],
       }),
     });
 
@@ -174,7 +203,57 @@ export async function POST(req: NextRequest) {
       }, { status: response.status });
     }
 
-    return new Response(response.body, {
+    // Pass through with web-search detection
+    const encoder = new TextEncoder();
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return NextResponse.json({ error: 'No response body' }, { status: 500 });
+    }
+
+    let webSearchUsed = false;
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              // Append web search metadata
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ __meta__: { web_search: webSearchUsed } })}\n\n`));
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const raw = line.slice(6);
+              if (raw === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(raw);
+                if (parsed.citations || parsed.usage?.citations || parsed.finish_reason === 'web_search') {
+                  webSearchUsed = true;
+                }
+              } catch {}
+
+              controller.enqueue(encoder.encode(line + '\n'));
+            }
+          }
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+    });
+
+    return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',

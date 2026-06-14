@@ -38,6 +38,7 @@ export default function ChatInterface() {
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<ModelOption[]>([]);
+  const [webSearchUsed, setWebSearchUsed] = useState(false);
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -260,6 +261,10 @@ export default function ChatInterface() {
 
               try {
                 const parsed = JSON.parse(data);
+                if (parsed.__meta__?.web_search) {
+                  setWebSearchUsed(true);
+                  continue;
+                }
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) {
                   accumulatedContent += delta;
@@ -272,6 +277,7 @@ export default function ChatInterface() {
       }
 
       setStreamingContent('');
+      setTimeout(() => setWebSearchUsed(false), 10000);
       const totalTokens = countMessageTokens(
         [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }],
         selectedModel
@@ -388,6 +394,10 @@ export default function ChatInterface() {
 
               try {
                 const parsed = JSON.parse(data);
+                if (parsed.__meta__?.web_search) {
+                  setWebSearchUsed(true);
+                  continue;
+                }
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) {
                   accumulatedContent += delta;
@@ -400,6 +410,7 @@ export default function ChatInterface() {
       }
 
       setStreamingContent('');
+      setTimeout(() => setWebSearchUsed(false), 10000);
       const totalTokens = countMessageTokens(
         [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }],
         selectedModel
@@ -481,15 +492,25 @@ export default function ChatInterface() {
               )}
             </div>
 
-            {/* Token Counter */}
-            {tokenCount > 0 && !isOllamaModel(selectedModel) && (
-              <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <span>{formatTokenCount(tokenCount)} token</span>
-              </div>
-            )}
+            {/* Token Counter & Web Search */}
+            <div className="flex items-center gap-2">
+              {webSearchUsed && (
+                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Web
+                </div>
+              )}
+              {tokenCount > 0 && (
+                <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>{formatTokenCount(tokenCount)} token</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

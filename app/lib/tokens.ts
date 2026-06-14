@@ -4,6 +4,7 @@
 const CHARS_PER_TOKEN: Record<string, number> = {
   gemini: 3.8,
   deepseek: 3.5,
+  ollama: 3.5,
 };
 const DEFAULT_CHARS_PER_TOKEN = 3.5;
 
