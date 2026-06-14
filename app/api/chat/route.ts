@@ -12,11 +12,66 @@ async function imageUrlToBase64(url: string): Promise<string> {
   return `data:${type};base64,${base64}`;
 }
 
+async function tavilySearch(query: string): Promise<string | null> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 5,
+      }),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.results?.length) return null;
+
+    return data.results.map((r: any) =>
+      `- ${r.title}: ${r.content} (${r.url})`
+    ).join('\n');
+  } catch {
+    return null;
+  }
+}
+
+function getLastUserMessage(messages: any[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messages[i].content || '';
+  }
+  return '';
+}
+
+function appendMetadata(content: string, webSearchUsed: boolean): string {
+  if (!webSearchUsed) return content + '\ndata: [DONE]\n\n';
+  const meta = `data: ${JSON.stringify({ __meta__: { web_search: true } })}\n\n`;
+  return content + meta + 'data: [DONE]\n\n';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, model, ollamaUrl, systemPrompt, contextLength } = await req.json();
 
-    const systemContent = systemPrompt || SYSTEM_PROMPT_DEFAULT;
+    let systemContent = systemPrompt || SYSTEM_PROMPT_DEFAULT;
+    let webSearchUsed = false;
+
+    // Tavily search for non-Gemini models
+    if (model !== 'gemini') {
+      const lastQuery = getLastUserMessage(messages);
+      if (lastQuery) {
+        const searchResults = await tavilySearch(lastQuery);
+        if (searchResults) {
+          systemContent += `\n\nWeb search results:\n${searchResults}`;
+          webSearchUsed = true;
+        }
+      }
+    }
 
     // Format messages - handle single or multiple image URLs
     const formattedMessages = messages.map((msg: any) => {
@@ -55,12 +110,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'API kulcs nincs beállítva' }, { status: 500 });
       }
 
-      // Build Ollama-format messages with optional images (base64)
       const ollamaMessages: any[] = [];
       for (const msg of messages) {
         const entry: any = { role: msg.role, content: msg.content || '' };
 
-        // Handle images for Ollama vision models
         if (msg.image_url) {
           let imageUrls: string[];
           try {
@@ -86,7 +139,6 @@ export async function POST(req: NextRequest) {
 
         ollamaMessages.push(entry);
       }
-      // Add system prompt as first message
       ollamaMessages.unshift({ role: 'system', content: systemContent });
 
       const ollamaBody: any = {
@@ -122,6 +174,9 @@ export async function POST(req: NextRequest) {
       const stream = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
+          if (webSearchUsed) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ __meta__: { web_search: true } })}\n\n`));
+          }
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         },
@@ -165,7 +220,42 @@ export async function POST(req: NextRequest) {
         }, { status: response.status });
       }
 
-      return new Response(response.body, {
+      // Forward stream with web search metadata
+      const encoder = new TextEncoder();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        return NextResponse.json({ error: 'No response body' }, { status: 500 });
+      }
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const decoder = new TextDecoder();
+          let buffer = '';
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                if (webSearchUsed) {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ __meta__: { web_search: true } })}\n\n`));
+                }
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                controller.close();
+                break;
+              }
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (line.trim()) controller.enqueue(encoder.encode(line + '\n'));
+              }
+            }
+          } catch (e) {
+            controller.error(e);
+          }
+        },
+      });
+
+      return new Response(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -203,26 +293,23 @@ export async function POST(req: NextRequest) {
       }, { status: response.status });
     }
 
-    // Pass through with web-search detection
     const encoder = new TextEncoder();
     const reader = response.body?.getReader();
     if (!reader) {
       return NextResponse.json({ error: 'No response body' }, { status: 500 });
     }
 
-    let webSearchUsed = false;
-
     const stream = new ReadableStream({
       async start(controller) {
         const decoder = new TextDecoder();
         let buffer = '';
+        let geminiWebSearch = false;
 
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              // Append web search metadata
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ __meta__: { web_search: webSearchUsed } })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ __meta__: { web_search: geminiWebSearch } })}\n\n`));
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
               break;
@@ -233,14 +320,17 @@ export async function POST(req: NextRequest) {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
+              if (!line.startsWith('data: ')) {
+                controller.enqueue(encoder.encode(line + '\n'));
+                continue;
+              }
               const raw = line.slice(6);
               if (raw === '[DONE]') continue;
 
               try {
                 const parsed = JSON.parse(raw);
-                if (parsed.citations || parsed.usage?.citations || parsed.finish_reason === 'web_search') {
-                  webSearchUsed = true;
+                if (parsed.citations || parsed.usage?.citations) {
+                  geminiWebSearch = true;
                 }
               } catch {}
 
