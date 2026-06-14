@@ -13,6 +13,19 @@ import WelcomeScreen from '@/app/components/WelcomeScreen';
 import AuthModal from '@/app/components/AuthModal';
 import SettingsModal from '@/app/components/SettingsModal';
 
+interface ModelOption {
+  id: string;
+  label: string;
+}
+
+const FIXED_MODELS: ModelOption[] = [
+  { id: 'gemini', label: 'Gemini Flash Lite' },
+  { id: 'deepseek', label: 'DeepSeek 8B' },
+];
+
+const OLLAMA_URL_KEY = 'ollamaUrl';
+const OLLAMA_MODELS_KEY = 'ollamaModels';
+
 export default function ChatInterface() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -22,35 +35,30 @@ export default function ChatInterface() {
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [tokenCount, setTokenCount] = useState<number>(0);
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<'gemini' | 'deepseek'>('gemini');
+  const [selectedModel, setSelectedModel] = useState('gemini');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<ModelOption[]>([]);
 
-  // Load model preference from localStorage
+  // Load preferences from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('selectedModel');
-    if (saved === 'gemini' || saved === 'deepseek') {
-      setSelectedModel(saved);
+    const savedModel = localStorage.getItem('selectedModel');
+    if (savedModel) setSelectedModel(savedModel);
+
+    const savedUrl = localStorage.getItem(OLLAMA_URL_KEY);
+    const savedModels = localStorage.getItem(OLLAMA_MODELS_KEY);
+    if (savedUrl && savedModels) {
+      try {
+        const models = JSON.parse(savedModels) as { name: string; enabled: boolean }[];
+        const enabled = models
+          .filter(m => m.enabled)
+          .map(m => ({ id: `ollama:${m.name}`, label: m.name }));
+        setOllamaModels(enabled);
+      } catch {}
     }
   }, []);
-  
+
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
 
-  // Handle OAuth callback code
-  useEffect(() => {
-    const handleAuthCode = async () => {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get('code');
-      
-      if (code) {
-        // Exchange code for session
-        await supabase.auth.exchangeCodeForSession(code);
-        // Remove code from URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    };
-    
-    handleAuthCode();
-  }, []);
   const {
     chats,
     currentChat,
@@ -63,9 +71,53 @@ export default function ChatInterface() {
     uploadImage,
   } = useSupabaseChat(user);
 
-  // Auto-generate chat title based on first message
+  // Listen for localStorage changes (e.g. from SettingsModal)
+  useEffect(() => {
+    const handleStorage = () => {
+      const savedModels = localStorage.getItem(OLLAMA_MODELS_KEY);
+      const savedUrl = localStorage.getItem(OLLAMA_URL_KEY);
+      if (savedUrl && savedModels) {
+        try {
+          const models = JSON.parse(savedModels) as { name: string; enabled: boolean }[];
+          const enabled = models
+            .filter(m => m.enabled)
+            .map(m => ({ id: `ollama:${m.name}`, label: m.name }));
+          setOllamaModels(enabled);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    // Also check on focus (for same-tab changes)
+    window.addEventListener('focus', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleStorage);
+    };
+  }, []);
+
+  const allModels = [...FIXED_MODELS, ...ollamaModels];
+
+  const getModelLabel = (id: string) => {
+    const found = allModels.find(m => m.id === id);
+    return found ? found.label : id;
+  };
+
+  const isOllamaModel = (model: string) => model.startsWith('ollama:');
+
+  const handleAuthCode = useCallback(async () => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    if (code) {
+      await supabase.auth.exchangeCodeForSession(code);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    handleAuthCode();
+  }, [handleAuthCode]);
+
   const generateChatTitle = useCallback(async (chatId: string, firstMessage: string) => {
-    console.log('Generating title for chat:', chatId, 'message:', firstMessage.substring(0, 50));
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -77,10 +129,7 @@ export default function ChatInterface() {
         }),
       });
 
-      if (!response.ok) {
-        console.error('Title generation failed:', response.status);
-        return;
-      }
+      if (!response.ok) return;
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -90,41 +139,36 @@ export default function ChatInterface() {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = decoder.decode(value);
           const lines = chunk.split('\n');
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data === '[DONE]') continue;
-              
+
               try {
                 const parsed = JSON.parse(data);
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) title += delta;
-              } catch (e) {
-                // Ignore parse errors
-              }
+              } catch (e) {}
             }
           }
         }
       }
 
-      // Clean up title
       title = title.trim().replace(/^["']|["']$/g, '').replace(/^(Cím:|Title:)\s*/i, '');
-      console.log('Generated title:', title);
-      
+
       if (title && title.length > 3 && title.length < 100) {
         await updateChatTitle(chatId, title);
-        console.log('Title updated successfully');
-      } else {
-        console.log('Title too short or empty, skipping');
       }
     } catch (error) {
       console.error('Error generating title:', error);
     }
   }, [updateChatTitle]);
+
+  const getOllamaUrl = () => localStorage.getItem(OLLAMA_URL_KEY) || '';
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) {
@@ -133,8 +177,7 @@ export default function ChatInterface() {
     }
 
     let chatId = currentChatId;
-    
-    // Create new chat if none exists
+
     if (!chatId) {
       const newChatId = await createNewChat();
       if (!newChatId) return;
@@ -143,37 +186,37 @@ export default function ChatInterface() {
 
     setIsLoading(true);
 
-    // Load fresh messages from database to ensure full context
     const { data: freshMessages } = await supabase
       .from('messages')
       .select('*')
       .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
 
-    // Build message history with the new user message (include image_url for context)
     const allMessages = [
       ...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })),
       { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined }
     ];
 
-    // Update token count
     const tokens = countMessageTokens(allMessages);
     setTokenCount(tokens);
 
-    // Generate title on FIRST message only
     if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
       generateChatTitle(chatId, content);
       setHasGeneratedTitle(prev => new Set(prev).add(chatId));
     }
 
-    // Add user message to database
     await addMessage(chatId, 'user', content, imageUrls);
 
     try {
+      const body: any = { messages: allMessages, model: selectedModel };
+      if (isOllamaModel(selectedModel)) {
+        body.ollamaUrl = getOllamaUrl();
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModel }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -203,18 +246,15 @@ export default function ChatInterface() {
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) {
                   accumulatedContent += delta;
-                  setStreamingContent(accumulatedContent); // Update UI in real-time
+                  setStreamingContent(accumulatedContent);
                 }
-              } catch (e) {
-                // Ignore parse errors for incomplete chunks
-              }
+              } catch (e) {}
             }
           }
         }
       }
 
       setStreamingContent('');
-      // Add the complete assistant message (only ONE message, no empty one)
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
@@ -222,7 +262,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModel]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModel, generateChatTitle, hasGeneratedTitle]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
@@ -252,7 +292,7 @@ export default function ChatInterface() {
     setCurrentChatId(null);
   }, [signOut, setCurrentChatId]);
 
-  const handleModelChange = useCallback((model: 'gemini' | 'deepseek') => {
+  const handleModelChange = useCallback((model: string) => {
     setSelectedModel(model);
     localStorage.setItem('selectedModel', model);
     setIsModelDropdownOpen(false);
@@ -261,7 +301,6 @@ export default function ChatInterface() {
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
 
-    // Load fresh messages from database
     const { data: messages } = await supabase
       .from('messages')
       .select('*')
@@ -270,37 +309,37 @@ export default function ChatInterface() {
 
     if (!messages) return;
 
-    // Find the message to regenerate
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1 || messages[messageIndex].role !== 'assistant') return;
 
-    // Get all messages before this one
     const messagesBefore = messages.slice(0, messageIndex);
 
-    // Delete the old message from database
     await supabase
       .from('messages')
       .delete()
       .eq('id', messageId)
       .eq('chat_id', currentChatId);
 
-    // Remove from local state immediately
     setCurrentMessages(prev => prev.filter(m => m.id !== messageId));
 
-    // Regenerate
     setIsLoading(true);
-    
-    const allMessages = messagesBefore.map(m => ({ 
-      role: m.role, 
+
+    const allMessages = messagesBefore.map(m => ({
+      role: m.role,
       content: m.content,
-      image_url: m.image_url 
+      image_url: m.image_url
     }));
 
     try {
+      const body: any = { messages: allMessages, model: selectedModel };
+      if (isOllamaModel(selectedModel)) {
+        body.ollamaUrl = getOllamaUrl();
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModel }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) throw new Error('Failed to get response');
@@ -330,9 +369,7 @@ export default function ChatInterface() {
                   accumulatedContent += delta;
                   setStreamingContent(accumulatedContent);
                 }
-              } catch (e) {
-                // Ignore parse errors
-              }
+              } catch (e) {}
             }
           }
         }
@@ -358,7 +395,6 @@ export default function ChatInterface() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      {/* Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -373,7 +409,6 @@ export default function ChatInterface() {
         onSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-full relative">
         {/* Header */}
         <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
@@ -386,15 +421,13 @@ export default function ChatInterface() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            
+
             <div className="relative">
               <button
                 onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
                 className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <span className="font-medium text-gray-800">
-                  {selectedModel === 'gemini' ? 'Gemini Flash Lite' : 'DeepSeek 8B'}
-                </span>
+                <span className="font-medium text-gray-800">{getModelLabel(selectedModel)}</span>
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -402,26 +435,25 @@ export default function ChatInterface() {
               {isModelDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px] overflow-hidden">
-                    <button
-                      onClick={() => handleModelChange('gemini')}
-                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedModel === 'gemini' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'}`}
-                    >
-                      Gemini Flash Lite
-                    </button>
-                    <button
-                      onClick={() => handleModelChange('deepseek')}
-                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedModel === 'deepseek' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'}`}
-                    >
-                      DeepSeek 8B
-                    </button>
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+                    {allModels.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => handleModelChange(model.id)}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+                          selectedModel === model.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                        }`}
+                      >
+                        {model.label}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
             </div>
-            
+
             {/* Token Counter */}
-            {tokenCount > 0 && (
+            {tokenCount > 0 && !isOllamaModel(selectedModel) && (
               <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -454,19 +486,18 @@ export default function ChatInterface() {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-gradient-blue">
-          <WelcomeScreen 
+          <WelcomeScreen
             onSuggestionClick={handleSendMessage}
             currentChat={currentChat}
           />
-          
-          <MessageList 
+
+          <MessageList
             chatId={currentChatId}
             isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
             onRegenerate={handleRegenerate}
           />
-
         </div>
 
         {/* Input Area */}
@@ -479,7 +510,7 @@ export default function ChatInterface() {
               placeholder={user ? "Kérdezz bármit..." : "Bejelentkezés szükséges a chathez"}
             />
             <p className="text-center text-xs text-gray-400 mt-2">
-              A {selectedModel === 'gemini' ? 'Gemini' : 'DeepSeek'} hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
+              {getModelLabel(selectedModel)} hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
             </p>
           </div>
         </div>
