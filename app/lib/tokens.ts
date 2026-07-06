@@ -1,57 +1,25 @@
-// Token estimation based on model type
-// Gemini uses SentencePiece, DeepSeek/Ollama use various tokenizers
-
-const CHARS_PER_TOKEN: Record<string, number> = {
-  gemini: 3.8,
-  deepseek: 3.5,
-  ollama: 3.5,
-  grok: 3.6,
-};
-const DEFAULT_CHARS_PER_TOKEN = 3.5;
-
-export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  gemini: 1048576,
-  deepseek: 131072,
-  grok: 1048576,
-};
-export const DEFAULT_CONTEXT_WINDOW = 4096;
-
-const TOKENS_PER_IMAGE = 258;
+export const GEMINI_CONTEXT_WINDOW = 1048576;
+export const GROK_CONTEXT_WINDOW = 1048576;
 const GC_THRESHOLD = 800000;
 
-function getModelKey(model?: string): string | undefined {
-  if (!model) return undefined;
-  if (model.startsWith('ollama:')) return 'ollama';
-  return model;
-}
+const CHARS_PER_TOKEN_GEMINI = 3.8;
+const CHARS_PER_TOKEN_GROK = 3.6;
+const TOKENS_PER_IMAGE = 258;
 
-export function getContextWindow(model?: string, ollamaContextLength?: number): number {
-  if (model?.startsWith('ollama:')) {
-    return ollamaContextLength || DEFAULT_CONTEXT_WINDOW;
-  }
-  const key = getModelKey(model);
-  if (key && MODEL_CONTEXT_WINDOWS[key]) return MODEL_CONTEXT_WINDOWS[key];
-  return DEFAULT_CONTEXT_WINDOW;
-}
-
-export function countTokens(text: string, model?: string): number {
+export function countTokensHeuristic(text: string, model: string): number {
   if (!text) return 0;
-  const key = getModelKey(model);
-  const ratio = key ? (CHARS_PER_TOKEN[key] || DEFAULT_CHARS_PER_TOKEN) : DEFAULT_CHARS_PER_TOKEN;
+  const ratio = model === 'grok' ? CHARS_PER_TOKEN_GROK : CHARS_PER_TOKEN_GEMINI;
   return Math.ceil(text.length / ratio);
 }
 
-export function countMessageTokens(
+export function countMessageTokensHeuristic(
   messages: Array<{ role: string; content: string; image_url?: string | null }>,
-  model?: string
+  model: string
 ): number {
   let total = 0;
-
   for (const msg of messages) {
-    total += 4; // formatting tokens
-    total += 1; // role token
-    total += countTokens(msg.content, model);
-
+    total += 5;
+    total += countTokensHeuristic(msg.content, model);
     if (msg.image_url) {
       let imageCount = 1;
       try {
@@ -61,9 +29,30 @@ export function countMessageTokens(
       total += imageCount * TOKENS_PER_IMAGE;
     }
   }
-
-  total += 3; // response prefix
+  total += 3;
   return total;
+}
+
+export async function countTokensApi(messages: Array<{ role: string; content: string; image_url?: string | null }>): Promise<number> {
+  try {
+    const cleanMessages = messages.map(m => ({
+      role: m.role,
+      content: m.content || '',
+    }));
+
+    const response = await fetch('/api/count-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: cleanMessages }),
+    });
+
+    if (!response.ok) return 0;
+
+    const data = await response.json();
+    return data.tokenCount || 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function formatTokenCount(count: number): string {
@@ -72,11 +61,8 @@ export function formatTokenCount(count: number): string {
   return count.toString();
 }
 
-export function isNearContextLimit(tokenCount: number): boolean {
-  return tokenCount > GC_THRESHOLD;
-}
-
 export function getTokenUsagePercent(tokenCount: number, contextWindow: number): number {
+  if (contextWindow <= 0) return 0;
   return Math.min(100, Math.round((tokenCount / contextWindow) * 100));
 }
 
@@ -85,4 +71,8 @@ export function getTokenUsageColor(percent: number): string {
   if (percent > 70) return '#f59e0b';
   if (percent > 50) return '#eab308';
   return '#22c55e';
+}
+
+export function isOverGCThreshold(tokenCount: number): boolean {
+  return tokenCount > GC_THRESHOLD;
 }
