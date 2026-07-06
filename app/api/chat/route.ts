@@ -4,6 +4,25 @@ const DEEPSEEK_URL = 'https://8000-dep-01kv3w4efm8x4gfsb8mrbrgbrf-d.cloudspaces.
 
 const SYSTEM_PROMPT_DEFAULT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
 
+function buildRichSystemPrompt(basePrompt: string): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const timeStr = now.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const vars = [
+    `[DÁTUM]: ${dateStr}`,
+    `[IDŐ]: ${timeStr}`,
+    `[IDŐZÓNA]: ${timezone}`,
+    `[NAP]: ${now.toLocaleDateString('hu-HU', { weekday: 'long' })}`,
+    `[HÓNAP]: ${now.toLocaleDateString('hu-HU', { month: 'long' })}`,
+    `[ÉV]: ${now.getFullYear()}`,
+    `[HÉT NAPJA]: ${now.getDay() === 0 || now.getDay() === 6 ? 'hétvége' : 'hétköznap'}`,
+  ].join('\n');
+
+  return `${vars}\n\n${basePrompt}`;
+}
+
 async function imageUrlToBase64(url: string): Promise<string> {
   const res = await fetch(url);
   const buffer = await res.arrayBuffer();
@@ -58,7 +77,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, model, ollamaUrl, systemPrompt, contextLength } = await req.json();
 
-    let systemContent = systemPrompt || SYSTEM_PROMPT_DEFAULT;
+    let systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
     let webSearchUsed = false;
 
     // Tavily search for non-Gemini models

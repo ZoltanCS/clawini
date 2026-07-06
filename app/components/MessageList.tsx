@@ -16,7 +16,7 @@ interface MessageListProps {
 
 function TypingIndicator() {
   return (
-    <div className="flex justify-start mb-4">
+    <div className="flex justify-start mb-4 message-enter">
       <div className="bg-transparent px-4 py-3">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-6 h-6 relative">
@@ -24,7 +24,7 @@ function TypingIndicator() {
               <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
             </svg>
           </div>
-          <span className="text-sm font-medium text-gray-600">Gemini</span>
+          <span className="text-sm font-medium text-gray-600">AI</span>
         </div>
         <div className="flex items-center gap-1 ml-8">
           <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce-delayed" />
@@ -38,18 +38,22 @@ function TypingIndicator() {
 
 export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const prevChatId = useRef<string | null>(null);
 
-  // Load messages when chat changes
   useEffect(() => {
     if (!chatId) {
       setMessages([]);
+      prevChatId.current = null;
       return;
     }
 
+    setIsLoadingMessages(true);
+    prevChatId.current = chatId;
+
     const loadMessages = async () => {
-      setIsLoadingMessages(true);
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -67,7 +71,6 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
 
     loadMessages();
 
-    // Subscribe to message changes (INSERT, DELETE, UPDATE)
     const subscription = supabase
       .channel(`messages-${chatId}`)
       .on('postgres_changes',
@@ -89,10 +92,14 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     };
   }, [chatId]);
 
-  // Scroll to bottom when messages change
+  const isNewChat = chatId !== prevChatId.current;
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    const el = bottomRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: isNewChat ? 'auto' : 'smooth' });
+    }
+  }, [messages, isLoading, isNewChat]);
 
   if (!chatId) {
     return null;
@@ -111,42 +118,34 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
-      <div className="max-w-3xl mx-auto">
-        {messages.map((message) => (
-          <MessageBubble 
-            key={message.id} 
-            message={message} 
-            onRegenerate={() => onRegenerate?.(message.id)}
-            onBranch={() => onBranch?.(message.id)}
-          />
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
+      <div className="w-full">
+        {messages.map((message, index) => (
+          <div key={message.id} className={index === messages.length - 1 ? 'message-enter' : ''}>
+            <MessageBubble 
+              message={message} 
+              onRegenerate={() => onRegenerate?.(message.id)}
+              onBranch={() => onBranch?.(message.id)}
+            />
+          </div>
         ))}
         {streamingContent && (
           <div className="flex justify-start mb-4">
-            <div className="max-w-[85%] sm:max-w-[75%] px-4 py-3 rounded-2xl bg-transparent">
+            <div className="max-w-[85%] px-4 py-3 rounded-2xl bg-transparent">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-6 h-6 relative">
                   <svg viewBox="0 0 24 24" className="w-full h-full">
                     <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-600">Gemini</span>
+                <span className="text-sm font-medium text-gray-600">AI</span>
               </div>
-              <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{streamingContent}</div>
+              <div className="text-[15px] leading-relaxed whitespace-pre-wrap streaming-cursor">{streamingContent}</div>
             </div>
           </div>
         )}
         {isLoading && !streamingContent && <TypingIndicator />}
-        <div ref={bottomRef} />
-        
-        {/* Disclaimer */}
-        {messages.length > 0 && !isLoading && (
-          <div className="text-center mt-6 mb-2">
-            <p className="text-xs text-gray-400">
-              A Gemini hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
-            </p>
-          </div>
-        )}
+        <div ref={bottomRef} className="h-1" />
       </div>
     </div>
   );

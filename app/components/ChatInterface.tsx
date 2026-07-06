@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSupabaseChat } from '@/app/hooks/useSupabaseChat';
 import { Message, ChatError } from '@/app/types';
 import { supabase } from '@/app/lib/supabase';
-import { countMessageTokens, formatTokenCount } from '@/app/lib/tokens';
+import {
+  countMessageTokens,
+  formatTokenCount,
+  getContextWindow,
+  getTokenUsagePercent,
+  getTokenUsageColor,
+  isNearContextLimit,
+} from '@/app/lib/tokens';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -32,7 +39,7 @@ export function exportChatAsMarkdown(messages: Message[], title: string): string
     const role = msg.role === 'user' ? '**Te**' : '**AI**';
     md += `### ${role}\n${msg.content}\n\n`;
     if (msg.image_url) {
-      md += `_[kép]_\n\n`;
+      md += `_[kep]_\n\n`;
     }
   }
   return md;
@@ -57,6 +64,7 @@ export default function ChatInterface() {
   const [webSearchUsed, setWebSearchUsed] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const gcTriggeredRef = useRef(false);
 
   useEffect(() => {
     const savedModel = localStorage.getItem('selectedModel');
@@ -121,6 +129,22 @@ export default function ChatInterface() {
   const isOllamaModel = (model: string) => model.startsWith('ollama:');
 
   const dismissError = useCallback(() => setError(null), []);
+
+  const getOllamaContextLength = (modelId: string): number | undefined => {
+    if (!modelId.startsWith('ollama:')) return undefined;
+    const modelName = modelId.replace('ollama:', '');
+    try {
+      const saved = localStorage.getItem(OLLAMA_MODELS_KEY);
+      if (saved) {
+        const models = JSON.parse(saved) as { name: string; contextLength: number }[];
+        const found = models.find(m => m.name === modelName);
+        return found?.contextLength;
+      }
+    } catch {}
+    return undefined;
+  };
+
+  const contextWindow = getContextWindow(selectedModel, getOllamaContextLength(selectedModel));
 
   const handleAuthCode = useCallback(async () => {
     const url = new URL(window.location.href);
@@ -327,17 +351,24 @@ export default function ChatInterface() {
     }
     await createNewChat();
     setIsSidebarOpen(false);
+    gcTriggeredRef.current = false;
   }, [user, createNewChat]);
 
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
     setIsSidebarOpen(false);
     setError(null);
+    gcTriggeredRef.current = false;
   }, [setCurrentChatId]);
 
   const handleMessagesLoaded = useCallback((messages: Message[]) => {
     setCurrentMessages(messages);
-  }, []);
+    const tokens = countMessageTokens(
+      messages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })),
+      selectedModel
+    );
+    setTokenCount(tokens);
+  }, [selectedModel]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -348,7 +379,14 @@ export default function ChatInterface() {
     setSelectedModel(model);
     localStorage.setItem('selectedModel', model);
     setIsModelDropdownOpen(false);
-  }, []);
+    if (currentMessages.length > 0) {
+      const tokens = countMessageTokens(
+        currentMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })),
+        model
+      );
+      setTokenCount(tokens);
+    }
+  }, [currentMessages]);
 
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
@@ -478,18 +516,18 @@ export default function ChatInterface() {
     const newChatId = await createNewChat();
     if (!newChatId) return;
 
-    for (const msg of messagesToCopy) {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
+    const { error } = await supabase
+      .from('messages')
+      .insert(
+        messagesToCopy.map(msg => ({
           chat_id: newChatId,
           role: msg.role,
           content: msg.content,
           image_url: msg.image_url,
           created_at: msg.created_at,
-        });
-      if (error) console.error('Error copying message for branch:', error);
-    }
+        }))
+      );
+    if (error) console.error('Error batch copying messages for branch:', error);
 
     if (messagesToCopy.length > 0) {
       const firstUserMsg = messagesToCopy.find(m => m.role === 'user');
@@ -502,10 +540,13 @@ export default function ChatInterface() {
     setCurrentChatId(newChatId);
     setIsSidebarOpen(false);
     setError(null);
+    gcTriggeredRef.current = false;
   }, [currentChatId, user, createNewChat, generateChatTitle]);
 
   const handleGarbageCollect = useCallback(async () => {
-    if (!currentChatId || !user) return;
+    if (!currentChatId || !user || gcTriggeredRef.current) return;
+
+    gcTriggeredRef.current = true;
 
     const { data: messages } = await supabase
       .from('messages')
@@ -519,16 +560,16 @@ export default function ChatInterface() {
     setError(null);
 
     const convoText = messages.map(m =>
-      `[${m.role === 'user' ? 'Felhasználó' : 'AI'}]: ${m.content.substring(0, 500)}`
+      `[${m.role === 'user' ? 'Felhasznalo' : 'AI'}]: ${m.content.substring(0, 500)}`
     ).join('\n\n');
 
     try {
       const body: any = {
         messages: [
-          { role: 'user', content: `Tömörítsd össze az alábbi beszélgetést. Tartsd meg a lényegi információkat, kulcsfontosságú pontokat, döntéseket és kontextust. Írd át úgy, mintha egy rövidített verzió lenne, amiből folytatni lehet a beszélgetést.\n\nBeszélgetés:\n${convoText}` }
+          { role: 'user', content: `Tomoritsd ossze az alabbi beszelgetest. Tartsd meg a lenyegi informaciokat, kulcsfontossagu pontokat, donteseket es kontextust. Ird at ugy, mintha egy roviditett verzio lenne, amibol folytatni lehet a beszelgetest.\n\nBeszelgetes:\n${convoText}` }
         ],
         model: 'grok',
-        systemPrompt: 'Te egy tömör összefoglaló asszisztens vagy. Csak magyarul válaszolj. Légy tömör és lényegretörő.',
+        systemPrompt: 'Te egy tomor osszefoglalo asszisztens vagy. Csak magyarul valaszolj. Legy tomor es lenyegretoro.',
       };
 
       const response = await fetch('/api/chat', {
@@ -539,7 +580,7 @@ export default function ChatInterface() {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.details || errorBody.error || `Garbage collector hiba: ${response.status}`);
+        throw new Error(errorBody.details || errorBody.error || `GC hiba: ${response.status}`);
       }
 
       const reader = response.body?.getReader();
@@ -577,31 +618,35 @@ export default function ChatInterface() {
       setStreamingContent('');
 
       if (!accumulatedContent) {
-        throw new Error('A tömörítés nem adott vissza eredményt.');
+        throw new Error('A tomorites nem adott vissza eredmenyt.');
       }
 
       const newChatId = await createNewChat();
       if (!newChatId) return;
 
-      await addMessage(newChatId, 'user', `[GC] Garbage collector - Beszélgetés tömörítése (>800k token)`);
+      await addMessage(newChatId, 'user', `[GC] Garbage collector - tomorites (>800k token)`);
       await addMessage(newChatId, 'assistant', accumulatedContent);
 
       setCurrentChatId(newChatId);
       setIsSidebarOpen(false);
     } catch (error) {
-      console.error('Garbage collector error:', error);
-      const msg = error instanceof Error ? error.message : 'Ismeretlen hiba a tömörítés során';
-      setError({ message: msg, timestamp: Date.now(), retryFn: () => handleGarbageCollect() });
+      console.error('GC error:', error);
+      gcTriggeredRef.current = false;
+      const msg = error instanceof Error ? error.message : 'Ismeretlen hiba a tomorites soran';
+      setError({ message: msg, timestamp: Date.now(), retryFn: () => {
+        gcTriggeredRef.current = false;
+        handleGarbageCollect();
+      }});
     } finally {
       setIsLoading(false);
     }
   }, [currentChatId, user, createNewChat, addMessage]);
 
   useEffect(() => {
-    if (tokenCount > 800000 && currentChatId && !isLoading) {
+    if (tokenCount > 800000 && currentChatId && !isLoading && !gcTriggeredRef.current) {
       handleGarbageCollect();
     }
-  }, [tokenCount, currentChatId, isLoading]);
+  }, [tokenCount, currentChatId, isLoading, handleGarbageCollect]);
 
   const handleCompactCommand = useCallback((input: string) => {
     if (input.trim() === '/compact') {
@@ -659,16 +704,19 @@ export default function ChatInterface() {
     URL.revokeObjectURL(url);
   }, [currentChatId, currentChat]);
 
+  const usagePercent = getTokenUsagePercent(tokenCount, contextWindow);
+  const usageColor = getTokenUsageColor(usagePercent);
+
   if (isAuthLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen-safe">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
+    <div className="flex h-screen-safe bg-white overflow-hidden">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -685,11 +733,11 @@ export default function ChatInterface() {
 
       <main className="flex-1 flex flex-col h-full relative">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-white">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-2.5 -ml-1.5 touch-active rounded-full transition-colors active:bg-gray-100"
             >
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -699,22 +747,22 @@ export default function ChatInterface() {
             <div className="relative">
               <button
                 onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-2 py-1.5 touch-active rounded-lg transition-colors active:bg-gray-100"
               >
-                <span className="font-medium text-gray-800">{getModelLabel(selectedModel)}</span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="font-medium text-gray-800 text-sm truncate max-w-[100px]">{getModelLabel(selectedModel)}</span>
+                <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {isModelDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[180px] max-h-[300px] overflow-y-auto">
                     {allModels.map((model) => (
                       <button
                         key={model.id}
                         onClick={() => handleModelChange(model.id)}
-                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+                        className={`w-full text-left px-4 py-3 text-sm touch-active ${
                           selectedModel === model.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
                         }`}
                       >
@@ -726,32 +774,36 @@ export default function ChatInterface() {
               )}
             </div>
 
-            {/* Token Counter & Web Search */}
-            <div className="flex items-center gap-2">
-              {webSearchUsed && (
-                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Web
+            {/* Token bar */}
+            {tokenCount > 0 && (
+              <div className="flex items-center gap-1.5 min-w-0 flex-shrink">
+                <div className="h-1.5 bg-gray-100 rounded-full flex-1 min-w-[40px] max-w-[80px] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${usagePercent}%`, backgroundColor: usageColor }}
+                  />
                 </div>
-              )}
-              {tokenCount > 0 && (
-                <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <span>{formatTokenCount(tokenCount)} token</span>
-                </div>
-              )}
-            </div>
+                <span className="text-[10px] font-medium text-gray-500 whitespace-nowrap">
+                  {formatTokenCount(tokenCount)}/{formatTokenCount(contextWindow)}
+                </span>
+              </div>
+            )}
+
+            {webSearchUsed && (
+              <div className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Web
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={handleNewChat}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              title="Új beszélgetés"
+              className="p-2.5 touch-active rounded-full transition-colors active:bg-gray-100"
+              title="Uj beszelgetes"
             >
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -762,7 +814,7 @@ export default function ChatInterface() {
               <div className="relative">
                 <button
                   onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2.5 touch-active rounded-full transition-colors active:bg-gray-100"
                   title="Export"
                 >
                   <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -772,24 +824,24 @@ export default function ChatInterface() {
                 {exportMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px]">
+                    <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[170px]">
                       <button
                         onClick={() => handleExport('markdown')}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 touch-active"
                       >
                         Markdown (.md)
                       </button>
                       <button
                         onClick={() => handleExport('json')}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 touch-active"
                       >
                         JSON (.json)
                       </button>
                       <button
                         onClick={() => handleExport('clipboard')}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 touch-active"
                       >
-                        Vágólapra másolás
+                        Vagolapra masolas
                       </button>
                     </div>
                   </>
@@ -799,9 +851,9 @@ export default function ChatInterface() {
             {!user && (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-full transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 active:bg-blue-600 text-white text-sm font-medium rounded-full transition-colors"
               >
-                Bejelentkezés
+                Bejelentkezes
               </button>
             )}
           </div>
@@ -809,25 +861,25 @@ export default function ChatInterface() {
 
         {/* Error Banner */}
         {error && (
-          <div className="mx-4 mt-3 max-w-3xl self-center w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="error-enter mx-3 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
               <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-sm text-red-700">{error.message}</span>
+              <span className="text-sm text-red-700 truncate">{error.message}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
               {error.retryFn && (
                 <button
                   onClick={() => { dismissError(); error.retryFn?.(); }}
-                  className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-red-600 active:bg-red-100 rounded-lg transition-colors"
                 >
-                  Újra
+                  Ujra
                 </button>
               )}
               <button
                 onClick={dismissError}
-                className="p-1 hover:bg-red-100 rounded-full transition-colors"
+                className="p-1.5 active:bg-red-100 rounded-full transition-colors"
               >
                 <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -855,8 +907,8 @@ export default function ChatInterface() {
         </div>
 
         {/* Input Area */}
-        <div className="px-4 py-4 bg-gradient-to-t from-white via-white to-transparent">
-          <div className="max-w-3xl mx-auto">
+        <div className="px-3 py-3 bg-gradient-to-t from-white via-white to-transparent" style={{ paddingBottom: `calc(12px + var(--safe-area-inset-bottom))` }}>
+          <div className="w-full">
             <ChatInput
               onSend={(content, imageUrls) => {
                 if (handleCompactCommand(content)) return;
@@ -864,11 +916,8 @@ export default function ChatInterface() {
               }}
               isLoading={isLoading}
               onImageUpload={handleImageUpload}
-              placeholder={user ? "Kérdezz bármit... ( /compact = GC )" : "Bejelentkezés szükséges a chathez"}
+              placeholder={user ? "Kerj barmit... ( /compact = GC )" : "Bejelentkezes szukseges a chathez"}
             />
-            <p className="text-center text-xs text-gray-400 mt-2">
-              {getModelLabel(selectedModel)} hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.
-            </p>
           </div>
         </div>
       </main>

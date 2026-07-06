@@ -2,12 +2,16 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Gemini Chat',
-  description: 'Egy egyszerű, intuitív chatbot a Gemini Flash Lite modellel',
+  title: 'Clawini',
+  description: 'AI chat app',
   manifest: '/manifest.json',
-  icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Clawini',
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -16,7 +20,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#4285f4',
+  viewportFit: 'cover',
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({
@@ -25,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="hu">
-      <body className="antialiased">{children}</body>
+    <html lang="hu" className="overscroll-none">
+      <body className="antialiased overscroll-none touch-manipulation">{children}</body>
     </html>
   );
 }

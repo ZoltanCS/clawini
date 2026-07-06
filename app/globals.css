@@ -6,12 +6,14 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 255, 255, 255;
   --background-end-rgb: 255, 255, 255;
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -19,6 +21,7 @@ body {
   max-width: 100vw;
   overflow-x: hidden;
   height: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -29,12 +32,18 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+  -webkit-font-smoothing: antialiased;
+}
+
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -43,45 +52,95 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+  border-radius: 2px;
 }
 
 /* Mobile optimizations */
 @supports (-webkit-touch-callout: none) {
-  .h-screen {
-    height: -webkit-fill-available;
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 
-/* Animation for typing indicator */
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-    opacity: 0.5;
+/* Message slide-in animation */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
   }
-  40% {
-    transform: scale(1);
+  to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.animate-bounce-delayed {
-  animation: bounce 1.4s infinite ease-in-out both;
+.message-enter {
+  animation: messageSlideIn 0.25s ease-out forwards;
 }
 
-.animate-bounce-delayed:nth-child(1) {
-  animation-delay: -0.32s;
+/* Streaming cursor */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
-.animate-bounce-delayed:nth-child(2) {
-  animation-delay: -0.16s;
+.streaming-cursor::after {
+  content: '\u258C';
+  animation: cursorBlink 1s infinite;
+  color: #4285f4;
+  margin-left: 1px;
+}
+
+/* Error banner slide */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 100px;
+  }
+}
+
+.error-enter {
+  animation: slideDown 0.2s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Sidebar overlay */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.sidebar-overlay-enter {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.sidebar-panel-enter {
+  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Touch active state */
+@media (hover: none) and (pointer: coarse) {
+  .touch-active:active {
+    background-color: rgba(0, 0, 0, 0.05);
+    transform: scale(0.98);
+    transition: transform 0.1s ease-out;
+  }
+}
+
+/* Gradient backgrounds */
+.bg-gradient-blue {
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
 }
