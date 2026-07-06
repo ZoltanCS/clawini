@@ -272,6 +272,75 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ---------- Grok (used by /compact) ----------
+    if (model === 'grok') {
+      if (!process.env.OPENROUTER_API_KEY) {
+        return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
+      }
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://clawini.vercel.app',
+          'X-Title': 'Gemini Chat - Compact',
+        },
+        body: JSON.stringify({
+          model: 'x-ai/grok-3-beta',
+          messages: formattedMessages,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return NextResponse.json({
+          error: `Grok API error: ${response.status}`,
+          details: errorText
+        }, { status: response.status });
+      }
+
+      const encoder = new TextEncoder();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        return NextResponse.json({ error: 'No response body' }, { status: 500 });
+      }
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const decoder = new TextDecoder();
+          let buffer = '';
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                controller.close();
+                break;
+              }
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (line.trim()) controller.enqueue(encoder.encode(line + '\n'));
+              }
+            }
+          } catch (e) {
+            controller.error(e);
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
     // ---------- Gemini (default) ----------
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });

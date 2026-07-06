@@ -13,6 +13,7 @@ export interface Chat {
   title: string;
   created_at: string;
   updated_at: string;
+  parent_chat_id?: string | null;
 }
 
 export interface UserProfile {
@@ -28,4 +29,10 @@ export interface Settings {
   language: 'hu' | 'en';
   notifications: boolean;
   auto_save: boolean;
+}
+
+export interface ChatError {
+  message: string;
+  retryFn?: () => void;
+  timestamp: number;
 }

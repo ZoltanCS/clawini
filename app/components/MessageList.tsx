@@ -11,6 +11,7 @@ interface MessageListProps {
   onMessagesLoaded?: (messages: Message[]) => void;
   streamingContent?: string;
   onRegenerate?: (messageId: string) => void;
+  onBranch?: (messageId: string) => void;
 }
 
 function TypingIndicator() {
@@ -35,7 +36,7 @@ function TypingIndicator() {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -117,6 +118,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
             key={message.id} 
             message={message} 
             onRegenerate={() => onRegenerate?.(message.id)}
+            onBranch={() => onBranch?.(message.id)}
           />
         ))}
         {streamingContent && (
