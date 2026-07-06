@@ -504,7 +504,7 @@ export default function ChatInterface() {
     setError(null);
   }, [currentChatId, user, createNewChat, generateChatTitle]);
 
-  const handleCompact = useCallback(async () => {
+  const handleGarbageCollect = useCallback(async () => {
     if (!currentChatId || !user) return;
 
     const { data: messages } = await supabase
@@ -539,7 +539,7 @@ export default function ChatInterface() {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.details || errorBody.error || `Compact hiba: ${response.status}`);
+        throw new Error(errorBody.details || errorBody.error || `Garbage collector hiba: ${response.status}`);
       }
 
       const reader = response.body?.getReader();
@@ -583,27 +583,33 @@ export default function ChatInterface() {
       const newChatId = await createNewChat();
       if (!newChatId) return;
 
-      await addMessage(newChatId, 'user', `/compact - Beszélgetés tömörítése`);
+      await addMessage(newChatId, 'user', `[GC] Garbage collector - Beszélgetés tömörítése (>800k token)`);
       await addMessage(newChatId, 'assistant', accumulatedContent);
 
       setCurrentChatId(newChatId);
       setIsSidebarOpen(false);
     } catch (error) {
-      console.error('Compact error:', error);
+      console.error('Garbage collector error:', error);
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba a tömörítés során';
-      setError({ message: msg, timestamp: Date.now(), retryFn: () => handleCompact() });
+      setError({ message: msg, timestamp: Date.now(), retryFn: () => handleGarbageCollect() });
     } finally {
       setIsLoading(false);
     }
   }, [currentChatId, user, createNewChat, addMessage]);
 
+  useEffect(() => {
+    if (tokenCount > 800000 && currentChatId && !isLoading) {
+      handleGarbageCollect();
+    }
+  }, [tokenCount, currentChatId, isLoading]);
+
   const handleCompactCommand = useCallback((input: string) => {
     if (input.trim() === '/compact') {
-      handleCompact();
+      handleGarbageCollect();
       return true;
     }
     return false;
-  }, [handleCompact]);
+  }, [handleGarbageCollect]);
 
   const handleExport = useCallback(async (format: 'markdown' | 'json' | 'clipboard') => {
     if (!currentChatId) return;
@@ -858,7 +864,7 @@ export default function ChatInterface() {
               }}
               isLoading={isLoading}
               onImageUpload={handleImageUpload}
-              placeholder={user ? "Kérdezz bármit... ( /compact a tömörítéshez )" : "Bejelentkezés szükséges a chathez"}
+              placeholder={user ? "Kérdezz bármit... ( /compact = GC )" : "Bejelentkezés szükséges a chathez"}
             />
             <p className="text-center text-xs text-gray-400 mt-2">
               {getModelLabel(selectedModel)} hibákat tartalmazhat. Kérlek, ellenőrizd a fontos információkat.

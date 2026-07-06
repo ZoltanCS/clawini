@@ -287,7 +287,7 @@ export async function POST(req: NextRequest) {
           'X-Title': 'Gemini Chat - Compact',
         },
         body: JSON.stringify({
-          model: 'x-ai/grok-3-beta',
+          model: 'x-ai/grok-4.20',
           messages: formattedMessages,
           stream: true,
         }),
