@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         'X-Title': 'Clawini',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.1-flash-lite-preview',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
         messages: formattedMessages,
         stream: true,
         plugins: [{ id: 'web' }],
