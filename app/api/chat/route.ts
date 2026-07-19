@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         'X-Title': 'Clawini',
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition',
         messages: formattedMessages,
         stream: true,
         plugins: [{ id: 'web' }],
