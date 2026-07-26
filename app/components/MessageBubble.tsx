@@ -57,7 +57,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
       return tableHtml;
     });
     
-    formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto my-3"><code>$2</code></pre>');
+    formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto my-3 whitespace-pre-wrap break-all"><code>$2</code></pre>');
     formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">$1</code>');
     formatted = formatted.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -85,7 +85,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div
-        className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl ${
+        className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl break-words overflow-hidden min-w-0 ${
           isUser
             ? 'bg-gray-100 text-gray-800'
             : 'bg-transparent text-gray-800'
@@ -118,7 +118,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
         
         {message.content && (
           <div
-            className="text-[15px] leading-relaxed"
+            className="text-[15px] leading-relaxed break-words"
             dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
           />
         )}

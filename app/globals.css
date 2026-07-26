@@ -78,6 +78,29 @@ html, body {
   40% { transform: scale(1); }
 }
 
+/* Prevent text overflow everywhere */
+.word-break-safe {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+pre code {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Fix flexbox overflow: ensure flex children can shrink below content size in main chat area */
+main.flex-1 {
+  min-width: 0;
+}
+
+main > .flex-1 {
+  min-width: 0;
+}
+
 .animate-messageSlideIn {
   animation: messageSlideIn 0.2s ease-out forwards;
 }
