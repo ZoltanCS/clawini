@@ -1,25 +1,35 @@
-export const GEMINI_CONTEXT_WINDOW = 1048576;
-export const GROK_CONTEXT_WINDOW = 1048576;
+import { NIM_FALLBACK, NimModel } from './nim-models';
+
+export const DEFAULT_CONTEXT_WINDOW = 131072;
 const GC_THRESHOLD = 800000;
 
-const CHARS_PER_TOKEN_GEMINI = 3.8;
-const CHARS_PER_TOKEN_GROK = 3.6;
+const CHARS_PER_TOKEN_DEFAULT = 3.8;
 const TOKENS_PER_IMAGE = 258;
 
-export function countTokensHeuristic(text: string, model: string): number {
+export function getModelContextWindow(modelId: string): number {
+  const model = NIM_FALLBACK.find(m => m.id === modelId);
+  return model?.contextWindow || DEFAULT_CONTEXT_WINDOW;
+}
+
+export function getModelTokensPerChar(modelId: string): number {
+  const model = NIM_FALLBACK.find(m => m.id === modelId);
+  return model?.contextWindow ? 3.8 : CHARS_PER_TOKEN_DEFAULT;
+}
+
+export function countTokensHeuristic(text: string, modelId: string): number {
   if (!text) return 0;
-  const ratio = model === 'grok' ? CHARS_PER_TOKEN_GROK : CHARS_PER_TOKEN_GEMINI;
+  const ratio = getModelTokensPerChar(modelId);
   return Math.ceil(text.length / ratio);
 }
 
 export function countMessageTokensHeuristic(
   messages: Array<{ role: string; content: string; image_url?: string | null }>,
-  model: string
+  modelId: string
 ): number {
   let total = 0;
   for (const msg of messages) {
     total += 5;
-    total += countTokensHeuristic(msg.content, model);
+    total += countTokensHeuristic(msg.content, modelId);
     if (msg.image_url) {
       let imageCount = 1;
       try {
@@ -75,4 +85,8 @@ export function getTokenUsageColor(percent: number): string {
 
 export function isOverGCThreshold(tokenCount: number): boolean {
   return tokenCount > GC_THRESHOLD;
+}
+
+export function getAvailableModels(): NimModel[] {
+  return NIM_FALLBACK;
 }

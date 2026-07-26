@@ -8,19 +8,45 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        gemini: {
-          blue: '#4285f4',
-          red: '#ea4335',
-          yellow: '#fbbc04',
-          green: '#34a853',
-          light: '#f8f9fa',
-          border: '#dadce0',
+        nim: {
+          green: '#76b900',
+          'green-dark': '#5a8e00',
         }
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-blue': 'linear-gradient(to top, rgba(66, 133, 244, 0.15) 0%, transparent 50%)',
-      }
+      animation: {
+        'message-slide-in': 'messageSlideIn 0.2s ease-out forwards',
+        'slide-down': 'slideDown 0.2s ease-out forwards',
+        'fade-in': 'fadeIn 0.2s ease-out forwards',
+        'slide-in-left': 'slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'bounce': 'bounce 1.4s infinite ease-in-out',
+      },
+      keyframes: {
+        messageSlideIn: {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideDown: {
+          from: { opacity: '0', transform: 'translateY(-8px)', maxHeight: '0' },
+          to: { opacity: '1', transform: 'translateY(0)', maxHeight: '100px' },
+        },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        slideInLeft: {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(0)' },
+        },
+        slideUp: {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
+        bounce: {
+          '0%, 80%, 100%': { transform: 'scale(0.6)' },
+          '40%': { transform: 'scale(1)' },
+        },
+      },
     },
   },
   plugins: [],

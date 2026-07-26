@@ -7,9 +7,10 @@ interface MessageBubbleProps {
   message: Message;
   onRegenerate?: () => void;
   onBranch?: () => void;
+  modelLabel?: string;
 }
 
-export default function MessageBubble({ message, onRegenerate, onBranch }: MessageBubbleProps) {
+export default function MessageBubble({ message, onRegenerate, onBranch, modelLabel = 'AI' }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -84,7 +85,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch }: Messa
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div
-        className={`max-w-[85%] sm:max-w-[75%] px-4 py-3 rounded-2xl ${
+        className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl ${
           isUser
             ? 'bg-gray-100 text-gray-800'
             : 'bg-transparent text-gray-800'
@@ -92,12 +93,12 @@ export default function MessageBubble({ message, onRegenerate, onBranch }: Messa
       >
         {!isUser && (
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 relative">
-              <svg viewBox="0 0 24 24" className="w-full h-full">
-                <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span className="text-sm font-medium text-gray-600">Gemini</span>
+            <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
           </div>
         )}
         
@@ -125,48 +126,48 @@ export default function MessageBubble({ message, onRegenerate, onBranch }: Messa
         <div className="flex items-center gap-1 mt-3">
           {!isUser && (
             <>
-              <button className="p-1.5 touch-active rounded-full active:bg-gray-100 transition-colors" title="Tetszik">
+              <button className="p-1.5 rounded-full active:bg-gray-100" title="Tetszik">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
                 </svg>
               </button>
-              <button className="p-1.5 touch-active rounded-full active:bg-gray-100 transition-colors" title="Nem tetszik">
+              <button className="p-1.5 rounded-full active:bg-gray-100" title="Nem tetszik">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.364 13.5c.215 0 .428-.045.628-.13a3 3 0 01.292 5.757A6.75 6.75 0 0012 21a6.75 6.75 0 00-6.284-3.873 3 3 0 01.292-5.757c.2.085.413.13.628.13A4.5 4.5 0 0112 7.5a4.5 4.5 0 015.364 6z" />
                 </svg>
               </button>
               <button 
                 onClick={onRegenerate}
-                className="p-1.5 touch-active rounded-full active:bg-gray-100 transition-colors" 
-                title="Ujrageneralas"
+                className="p-1.5 rounded-full active:bg-gray-100"
+                title="Újragenerálás"
               >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
                 </svg>
               </button>
               <button 
                 onClick={onBranch}
-                className="p-1.5 touch-active rounded-full active:bg-gray-100 transition-colors" 
-                title="Branch - uj chat innen"
+                className="p-1.5 rounded-full active:bg-gray-100"
+                title="Branch - új chat innen"
               >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                 </svg>
               </button>
             </>
           )}
           <button 
             onClick={handleCopy}
-            className="p-1.5 touch-active rounded-full active:bg-gray-100 transition-colors" 
-            title={copied ? "Masolva!" : "Masolas"}
+            className="p-1.5 rounded-full active:bg-gray-100"
+            title={copied ? 'Másolva!' : 'Másolás'}
           >
             {copied ? (
               <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             ) : (
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
               </svg>
             )}
           </button>

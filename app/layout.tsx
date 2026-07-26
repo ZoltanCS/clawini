@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Clawini',
-  description: 'AI chat app',
+  description: 'AI chat app powered by NVIDIA NIM',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

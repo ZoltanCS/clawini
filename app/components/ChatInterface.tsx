@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSupabaseChat } from '@/app/hooks/useSupabaseChat';
 import { Message, ChatError } from '@/app/types';
@@ -9,11 +9,12 @@ import {
   countMessageTokensHeuristic,
   countTokensApi,
   formatTokenCount,
-  GEMINI_CONTEXT_WINDOW,
+  getModelContextWindow,
   getTokenUsagePercent,
   getTokenUsageColor,
   isOverGCThreshold,
 } from '@/app/lib/tokens';
+import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -21,17 +22,16 @@ import WelcomeScreen from '@/app/components/WelcomeScreen';
 import AuthModal from '@/app/components/AuthModal';
 import SettingsModal from '@/app/components/SettingsModal';
 
-const MODEL_OPTIONS = [
-  { id: 'gemini', label: 'Gemini Flash Lite' },
-  { id: 'grok', label: 'Grok 4.20' },
-];
+const MODELS_CACHE_KEY = 'nimModelsCache';
+const MODELS_CACHE_AGE = 1000 * 60 * 30;
+const SELECTED_MODEL_KEY = 'selectedModel';
 
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
   let md = `# ${title}\n\n`;
   for (const msg of messages) {
     const role = msg.role === 'user' ? '**Te**' : '**AI**';
     md += `### ${role}\n${msg.content}\n\n`;
-    if (msg.image_url) md += `_[kep]_\n\n`;
+    if (msg.image_url) md += `_[kép]_\n\n`;
   }
   return md;
 }
@@ -45,22 +45,49 @@ export default function ChatInterface() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTokenLoading, setIsTokenLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [tokenCount, setTokenCount] = useState<number>(0);
-  const [isTokenLoading, setIsTokenLoading] = useState(false);
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState('gemini');
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_NIM_MODEL_ID);
+  const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const [webSearchUsed, setWebSearchUsed] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [models, setModels] = useState<NimModel[]>([]);
+  const [isModelsLoading, setIsModelsLoading] = useState(true);
+  const [showTokenUsage, setShowTokenUsage] = useState(false);
   const gcTriggeredRef = useRef(false);
-  const lastTokenApiCallRef = useRef<string>('');
+  const lastTokenApiCallRef = useRef('');
 
   useEffect(() => {
-    const saved = localStorage.getItem('selectedModel');
-    if (saved) setSelectedModel(saved);
+    const cached = localStorage.getItem(MODELS_CACHE_KEY);
+    const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
+    if (savedModel) setSelectedModelId(savedModel);
+
+    if (cached) {
+      try {
+        const { models: cachedModels, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < MODELS_CACHE_AGE) {
+          setModels(cachedModels);
+          setIsModelsLoading(false);
+          return;
+        }
+      } catch {}
+    }
+
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const fetchedModels = data.models || [];
+        setModels(fetchedModels);
+        localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ models: fetchedModels, timestamp: Date.now() }));
+        setIsModelsLoading(false);
+      })
+      .catch(() => {
+        setIsModelsLoading(false);
+      });
   }, []);
 
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
@@ -69,26 +96,33 @@ export default function ChatInterface() {
     createNewChat, deleteChat, updateChatTitle, addMessage, uploadImage,
   } = useSupabaseChat(user);
 
-  const allModels = MODEL_OPTIONS;
-  const getModelLabel = (id: string) => allModels.find(m => m.id === id)?.label || id;
-  const contextWindow = GEMINI_CONTEXT_WINDOW;
+  const currentModel = useMemo(() => getModelById(models, selectedModelId), [models, selectedModelId]);
+  const modelLabel = currentModel?.label || selectedModelId.split('/').pop() || selectedModelId;
+  const modelPublisher = currentModel?.publisher || '';
+  const contextWindow = currentModel?.contextWindow || 131072;
+
+  const groupedModels = useMemo(() => {
+    const groups: Record<string, NimModel[]> = {};
+    for (const m of models) {
+      (groups[m.publisher] ||= []).push(m);
+    }
+    return groups;
+  }, [models]);
+
+  const publisherOrder = useMemo(() => {
+    const preferred = ['NVIDIA', 'Meta', 'DeepSeek', 'Mistral AI', 'Qwen', 'Google', 'Microsoft', '01.AI'];
+    const keys = Object.keys(groupedModels);
+    return [...preferred.filter(p => keys.includes(p)), ...keys.filter(k => !preferred.includes(k))];
+  }, [groupedModels]);
+
+  useEffect(() => {
+    if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId)) {
+      setSelectedModelId(DEFAULT_NIM_MODEL_ID);
+      localStorage.setItem(SELECTED_MODEL_KEY, DEFAULT_NIM_MODEL_ID);
+    }
+  }, [models, selectedModelId]);
 
   const dismissError = useCallback(() => setError(null), []);
-
-  const fetchRealTokenCount = useCallback(async (messages: Message[], model: string) => {
-    const key = messages.map(m => m.id).join(',') + model;
-    if (key === lastTokenApiCallRef.current) return;
-    lastTokenApiCallRef.current = key;
-
-    if (model === 'gemini' && messages.length > 0) {
-      setIsTokenLoading(true);
-      const realCount = await countTokensApi(messages);
-      if (realCount > 0) {
-        setTokenCount(realCount);
-      }
-      setIsTokenLoading(false);
-    }
-  }, []);
 
   const handleAuthCode = useCallback(async () => {
     const url = new URL(window.location.href);
@@ -107,7 +141,8 @@ export default function ChatInterface() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: `Csinálj egy rövid, lényegretörő címet (max 5 szó) ehhez a beszélgetéshez. Csak a címet írd, semmi mást.\n\nÜzenet: "${firstMessage.substring(0, 200)}"` }]
+          messages: [{ role: 'user', content: `Csinálj egy rövid, lényegretörő címet (max 5 szó) ehhez a beszélgetéshez. Csak a címet írd, semmi mást.\n\nÜzenet: "${firstMessage.substring(0, 200)}"` }],
+          model: DEFAULT_GC_MODEL_ID,
         }),
       });
       if (!response.ok) return;
@@ -128,7 +163,7 @@ export default function ChatInterface() {
                 const parsed = JSON.parse(data);
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) title += delta;
-              } catch (e) {}
+              } catch {}
             }
           }
         }
@@ -136,7 +171,7 @@ export default function ChatInterface() {
       title = title.trim().replace(/^["']|["']$/g, '').replace(/^(Cím:|Title:)\s*/i, '');
       if (title && title.length > 3 && title.length < 100) await updateChatTitle(chatId, title);
     } catch (error) {
-      console.error('Error generating title:', error);
+      console.error('Title gen error:', error);
     }
   }, [updateChatTitle]);
 
@@ -145,7 +180,7 @@ export default function ChatInterface() {
   const streamResponse = useCallback(async (response: Response) => {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
-    let accumulatedContent = '';
+    let accumulated = '';
     setStreamingContent('');
 
     if (reader) {
@@ -160,15 +195,14 @@ export default function ChatInterface() {
             if (data === '[DONE]') continue;
             try {
               const parsed = JSON.parse(data);
-              if (parsed.__meta__?.web_search) { setWebSearchUsed(true); continue; }
               const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) { accumulatedContent += delta; setStreamingContent(accumulatedContent); }
-            } catch (e) {}
+              if (delta) { accumulated += delta; setStreamingContent(accumulated); }
+            } catch {}
           }
         }
       }
     }
-    return accumulatedContent;
+    return accumulated;
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
@@ -182,6 +216,7 @@ export default function ChatInterface() {
 
     setIsLoading(true);
     setError(null);
+    setShowTokenUsage(false);
 
     const { data: freshMessages } = await supabase
       .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
@@ -189,9 +224,8 @@ export default function ChatInterface() {
     const userMsg: any = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
     const allMessages = [...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
 
-    const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModel);
+    const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
     setTokenCount(heuristicTokens);
-    fetchRealTokenCount(freshMessages || [], selectedModel);
 
     if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
       generateChatTitle(chatId, content);
@@ -201,7 +235,7 @@ export default function ChatInterface() {
     await addMessage(chatId, 'user', content, imageUrls);
 
     try {
-      const body: any = { messages: allMessages, model: selectedModel === 'grok' ? 'gemini' : selectedModel };
+      const body: any = { messages: allMessages, model: selectedModelId };
       body.systemPrompt = getSystemPrompt();
 
       const response = await fetch('/api/chat', {
@@ -220,7 +254,7 @@ export default function ChatInterface() {
       setTimeout(() => setWebSearchUsed(false), 10000);
 
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
-      const finalTokens = countMessageTokensHeuristic(finalMessages, selectedModel);
+      const finalTokens = countMessageTokensHeuristic(finalMessages, selectedModelId);
       setTokenCount(finalTokens);
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
@@ -231,7 +265,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModel, generateChatTitle, hasGeneratedTitle, streamResponse, fetchRealTokenCount]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
@@ -254,22 +288,21 @@ export default function ChatInterface() {
 
   const handleMessagesLoaded = useCallback((messages: Message[]) => {
     setCurrentMessages(messages);
-    const heuristic = countMessageTokensHeuristic(messages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), selectedModel);
+    const heuristic = countMessageTokensHeuristic(messages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), selectedModelId);
     setTokenCount(heuristic);
-    fetchRealTokenCount(messages, selectedModel);
-  }, [selectedModel, fetchRealTokenCount]);
+  }, [selectedModelId]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
     setCurrentChatId(null);
   }, [signOut, setCurrentChatId]);
 
-  const handleModelChange = useCallback((model: string) => {
-    setSelectedModel(model);
-    localStorage.setItem('selectedModel', model);
-    setIsModelDropdownOpen(false);
+  const handleModelChange = useCallback((modelId: string) => {
+    setSelectedModelId(modelId);
+    localStorage.setItem(SELECTED_MODEL_KEY, modelId);
+    setIsModelSheetOpen(false);
     if (currentMessages.length > 0) {
-      const tokens = countMessageTokensHeuristic(currentMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), model);
+      const tokens = countMessageTokensHeuristic(currentMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), modelId);
       setTokenCount(tokens);
     }
   }, [currentMessages]);
@@ -291,7 +324,7 @@ export default function ChatInterface() {
 
     const allMessages = messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
     try {
-      const body: any = { messages: allMessages, model: selectedModel === 'grok' ? 'gemini' : selectedModel };
+      const body: any = { messages: allMessages, model: selectedModelId };
       body.systemPrompt = getSystemPrompt();
       const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!response.ok) {
@@ -302,7 +335,7 @@ export default function ChatInterface() {
       setStreamingContent('');
       setTimeout(() => setWebSearchUsed(false), 10000);
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
-      setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModel));
+      setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error) {
       console.error('Error:', error);
@@ -312,7 +345,7 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentChatId, user, addMessage, selectedModel, streamResponse]);
+  }, [currentChatId, user, addMessage, selectedModelId, streamResponse]);
 
   const handleBranch = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
@@ -365,7 +398,7 @@ export default function ChatInterface() {
     try {
       const body: any = {
         messages: [{ role: 'user', content: `Tomoritsd ossze az alabbi beszelgetest. Tartsd meg a lenyegi informaciokat, kulcsfontossagu pontokat, donteseket es kontextust. Ird at ugy, mintha egy roviditett verzio lenne, amibol folytatni lehet a beszelgetest.\n\nBeszelgetes:\n${convoText}` }],
-        model: 'grok',
+        model: DEFAULT_GC_MODEL_ID,
         systemPrompt: 'Te egy tomor osszefoglalo asszisztens vagy. Csak magyarul valaszolj. Legy tomor es lenyegretoro.',
       };
       const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -433,14 +466,14 @@ export default function ChatInterface() {
 
   if (isAuthLoading) {
     return (
-      <div className="flex items-center justify-center h-screen-safe">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <div className="flex items-center justify-center h-dvh">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen-safe bg-white overflow-hidden">
+    <div className="flex h-dvh bg-white overflow-hidden">
       <Sidebar
         isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}
         chats={chats} currentChatId={currentChatId} onSelectChat={handleSelectChat}
@@ -450,68 +483,52 @@ export default function ChatInterface() {
       />
 
       <main className="flex-1 flex flex-col h-full relative">
-        <header className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-white">
-          <div className="flex items-center gap-2 min-w-0">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 -ml-1.5 touch-active rounded-full active:bg-gray-100">
+        <header className="flex items-center justify-between px-2 py-2.5 border-b border-gray-100 bg-white/95 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-1 min-w-0">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-full active:bg-gray-100">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
               </svg>
             </button>
 
-            <div className="relative">
-              <button onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)} className="flex items-center gap-1 px-2 py-1.5 touch-active rounded-lg active:bg-gray-100">
-                <span className="font-medium text-gray-800 text-sm truncate max-w-[100px]">{getModelLabel(selectedModel)}</span>
-                <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {isModelDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[180px] max-h-[300px] overflow-y-auto">
-                    {allModels.map((model) => (
-                      <button key={model.id} onClick={() => handleModelChange(model.id)}
-                        className={`w-full text-left px-4 py-3 text-sm touch-active ${selectedModel === model.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'}`}>
-                        {model.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg active:bg-gray-100 max-w-[180px]">
+              <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span className="font-medium text-gray-800 text-sm truncate">{modelLabel}</span>
+              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
 
-            {tokenCount > 0 && (
-              <div className="flex items-center gap-1.5 min-w-0 flex-shrink">
-                <div className="h-1.5 bg-gray-100 rounded-full flex-1 min-w-[40px] max-w-[80px] overflow-hidden">
+            {showTokenUsage && tokenCount > 0 && (
+              <div className="flex items-center gap-1.5 ml-1">
+                <div className="h-1.5 bg-gray-100 rounded-full w-12 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500" style={{ width: `${usagePercent}%`, backgroundColor: usageColor }} />
                 </div>
-                <span className="text-[10px] font-medium text-gray-500 whitespace-nowrap">
-                  {isTokenLoading ? '...' : formatTokenCount(tokenCount)}/{formatTokenCount(contextWindow)}
-                </span>
-              </div>
-            )}
-
-            {webSearchUsed && (
-              <div className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>Web
+                <span className="text-[10px] font-medium text-gray-500">{formatTokenCount(tokenCount)}</span>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={handleNewChat} className="p-2.5 touch-active rounded-full active:bg-gray-100" title="Uj beszelgetes">
+            <button onClick={() => setShowTokenUsage(p => !p)} className="p-2 rounded-full active:bg-gray-100" title="Token használat">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+              </svg>
+            </button>
+
+            <button onClick={handleNewChat} className="p-2 rounded-full active:bg-gray-100" title="Új beszélgetés">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
             </button>
 
             {currentChatId && (
               <div className="relative">
-                <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2.5 touch-active rounded-full active:bg-gray-100" title="Export">
+                <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2 rounded-full active:bg-gray-100" title="Export">
                   <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                   </svg>
                 </button>
                 {exportMenuOpen && (
@@ -521,10 +538,10 @@ export default function ChatInterface() {
                       {[
                         { label: 'Markdown (.md)', format: 'markdown' as const },
                         { label: 'JSON (.json)', format: 'json' as const },
-                        { label: 'Vagolapra masolas', format: 'clipboard' as const },
+                        { label: 'Vágólapra másolás', format: 'clipboard' as const },
                       ].map(item => (
                         <button key={item.format} onClick={() => handleExport(item.format)}
-                          className="w-full text-left px-4 py-3 text-sm text-gray-700 touch-active">
+                          className="w-full text-left px-4 py-3 text-sm text-gray-700 active:bg-gray-50">
                           {item.label}
                         </button>
                       ))}
@@ -533,25 +550,26 @@ export default function ChatInterface() {
                 )}
               </div>
             )}
+
             {!user && (
-              <button onClick={() => setIsAuthModalOpen(true)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 active:bg-blue-600 text-white text-sm font-medium rounded-full">
-                Bejelentkezes
+              <button onClick={() => setIsAuthModalOpen(true)} className="px-3.5 py-2 bg-blue-500 active:bg-blue-600 text-white text-sm font-medium rounded-full">
+                Bejelentkezés
               </button>
             )}
           </div>
         </header>
 
         {error && (
-          <div className="error-enter mx-3 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div className="mx-2 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between animate-slideDown">
             <div className="flex items-center gap-2 min-w-0">
               <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
               </svg>
               <span className="text-sm text-red-700 truncate">{error.message}</span>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
               {error.retryFn && (
-                <button onClick={() => { dismissError(); error.retryFn?.(); }} className="px-3 py-1.5 text-xs font-medium text-red-600 active:bg-red-100 rounded-lg">Ujra</button>
+                <button onClick={() => { dismissError(); error.retryFn?.(); }} className="px-3 py-1.5 text-xs font-medium text-red-600 active:bg-red-100 rounded-lg">Újra</button>
               )}
               <button onClick={dismissError} className="p-1.5 active:bg-red-100 rounded-full">
                 <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -562,26 +580,90 @@ export default function ChatInterface() {
           </div>
         )}
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-gradient-blue">
+        <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-blue-50/50 to-white">
           <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} />
           <MessageList
             chatId={currentChatId} isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
             onRegenerate={handleRegenerate} onBranch={handleBranch}
+            modelLabel={modelLabel}
           />
         </div>
 
-        <div className="px-3 py-3 bg-gradient-to-t from-white via-white to-transparent" style={{ paddingBottom: `calc(12px + var(--safe-area-inset-bottom))` }}>
-          <div className="w-full">
-            <ChatInput
-              onSend={(content, imageUrls) => { if (handleCompactCommand(content)) return; handleSendMessage(content, imageUrls); }}
-              isLoading={isLoading} onImageUpload={handleImageUpload}
-              placeholder={user ? "Kerj barmit... ( /compact = GC )" : "Bejelentkezes szukseges a chathez"}
-            />
-          </div>
+        <div className="px-3 py-3 bg-gradient-to-t from-white via-white to-transparent" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+          <ChatInput
+            onSend={(content, imageUrls) => { if (handleCompactCommand(content)) return; handleSendMessage(content, imageUrls); }}
+            isLoading={isLoading} onImageUpload={handleImageUpload}
+            placeholder={user ? 'Írj bármit...' : 'Bejelentkezés szükséges'}
+          />
         </div>
       </main>
+
+      {/* Model Sheet - Mobile Bottom Sheet */}
+      {isModelSheetOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setIsModelSheetOpen(false)} />
+          <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl sm:max-h-[80vh] sm:mx-4 rounded-t-2xl max-h-[70vh] flex flex-col animate-slideUp">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800">Modell választás</h2>
+              <button onClick={() => setIsModelSheetOpen(false)} className="p-2 rounded-full active:bg-gray-100">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {isModelsLoading ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+              </div>
+            ) : models.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center py-12 text-gray-500 text-sm">Nem sikerült betölteni a modelleket</div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                {publisherOrder.map(publisher => {
+                  const publisherModels = groupedModels[publisher];
+                  if (!publisherModels) return null;
+                  return (
+                    <div key={publisher} className="mb-4">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 py-1.5">{publisher}</div>
+                      {publisherModels.map(model => {
+                        const isSelected = model.id === selectedModelId;
+                        return (
+                          <button
+                            key={model.id}
+                            onClick={() => handleModelChange(model.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left active:bg-gray-50 transition-colors ${
+                              isSelected ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                              isSelected ? 'border-blue-500' : 'border-gray-300'
+                            }`}>
+                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-sm font-medium truncate ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                                {model.label}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">{model.id}</div>
+                              {model.description && (
+                                <div className="text-xs text-gray-400 mt-0.5">{model.description}</div>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400 flex-shrink-0">{(model.contextWindow / 1000).toFixed(0)}k</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user} />

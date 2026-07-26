@@ -12,31 +12,32 @@ interface MessageListProps {
   streamingContent?: string;
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
+  modelLabel?: string;
 }
 
-function TypingIndicator() {
+function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   return (
-    <div className="flex justify-start mb-4 message-enter">
+    <div className="flex justify-start mb-4 animate-messageSlideIn">
       <div className="bg-transparent px-4 py-3">
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-6 h-6 relative">
-            <svg viewBox="0 0 24 24" className="w-full h-full">
-              <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="text-sm font-medium text-gray-600">AI</span>
+          <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
         </div>
-        <div className="flex items-center gap-1 ml-8">
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce-delayed" />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce-delayed" />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce-delayed" />
+        <div className="flex items-center gap-1 ml-7">
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
         </div>
       </div>
     </div>
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch, modelLabel = 'AI' }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,9 +63,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
 
       if (!error && data) {
         setMessages(data);
-        if (onMessagesLoaded) {
-          onMessagesLoaded(data);
-        }
+        if (onMessagesLoaded) onMessagesLoaded(data);
       }
       setIsLoadingMessages(false);
     };
@@ -90,7 +89,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     return () => {
       subscription.unsubscribe();
     };
-  }, [chatId]);
+  }, [chatId, onMessagesLoaded]);
 
   const isNewChat = chatId !== prevChatId.current;
 
@@ -99,52 +98,49 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     if (el) {
       el.scrollIntoView({ behavior: isNewChat ? 'auto' : 'smooth' });
     }
-  }, [messages, isLoading, isNewChat]);
+  }, [messages, isLoading, streamingContent, isNewChat]);
 
-  if (!chatId) {
-    return null;
-  }
+  if (!chatId) return null;
 
   if (isLoadingMessages) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     );
   }
 
-  if (messages.length === 0) {
-    return null;
-  }
+  if (messages.length === 0) return null;
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
-      <div className="w-full">
+      <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
-          <div key={message.id} className={index === messages.length - 1 ? 'message-enter' : ''}>
+          <div key={message.id} className={index === messages.length - 1 ? 'animate-messageSlideIn' : ''}>
             <MessageBubble 
-              message={message} 
+              message={message}
               onRegenerate={() => onRegenerate?.(message.id)}
               onBranch={() => onBranch?.(message.id)}
+              modelLabel={modelLabel}
             />
           </div>
         ))}
         {streamingContent && (
-          <div className="flex justify-start mb-4">
-            <div className="max-w-[85%] px-4 py-3 rounded-2xl bg-transparent">
+          <div className="flex justify-start mb-4 animate-messageSlideIn">
+            <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl bg-transparent">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 relative">
-                  <svg viewBox="0 0 24 24" className="w-full h-full">
-                    <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-600">AI</span>
+                <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
               </div>
               <div className="text-[15px] leading-relaxed whitespace-pre-wrap streaming-cursor">{streamingContent}</div>
             </div>
           </div>
         )}
-        {isLoading && !streamingContent && <TypingIndicator />}
+        {isLoading && !streamingContent && <TypingIndicator modelLabel={modelLabel} />}
         <div ref={bottomRef} className="h-1" />
       </div>
     </div>

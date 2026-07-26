@@ -8,23 +8,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Messages array required' }, { status: 400 });
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
+    const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
+
+    const baseUrl = process.env.NVIDIA_NIM_API_KEY
+      ? 'https://integrate.api.nvidia.com/v1'
+      : 'https://openrouter.ai/api/v1';
+
+    const model = process.env.NVIDIA_NIM_API_KEY
+      ? 'meta/llama-3.1-8b-instruct'
+      : 'meta/llama-3.1-8b-instruct';
 
     const formattedMessages = messages.map((msg: any) => ({
       role: msg.role,
       content: msg.content || '',
     }));
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.1-flash-lite-preview',
+        model,
         messages: formattedMessages,
         max_tokens: 1,
         stream: false,

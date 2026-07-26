@@ -18,110 +18,86 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-  isOpen,
-  onClose,
-  chats,
-  currentChatId,
-  onSelectChat,
-  onNewChat,
-  onDeleteChat,
-  user,
-  onSignIn,
-  onSignOut,
-  onSettings,
+  isOpen, onClose, chats, currentChatId,
+  onSelectChat, onNewChat, onDeleteChat,
+  user, onSignIn, onSignOut, onSettings,
 }: SidebarProps) {
   if (!isOpen) return null;
 
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleDateString('hu-HU', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-  const getUserInitials = () => {
-    if (!user?.email) return '?';
-    return user.email.charAt(0).toUpperCase();
+    if (date.toDateString() === today.toDateString()) return 'Ma';
+    if (date.toDateString() === yesterday.toDateString()) return 'Tegnap';
+    return date.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
   };
 
   return (
     <>
-      {/* Overlay */}
-      <div className="sidebar-overlay-enter fixed inset-0 bg-black/40 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/40 z-40 animate-fadeIn" onClick={onClose} />
 
-      {/* Panel */}
-      <aside className="sidebar-panel-enter fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[300px] bg-white shadow-xl flex flex-col">
-        {/* Header */}
+      <aside className="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[300px] bg-white shadow-xl flex flex-col animate-slideInLeft">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 relative">
-              <svg viewBox="0 0 24 24" className="w-full h-full">
-                <path fill="#4285f4" d="M12 2L8 8l4 3-4 3 4 6 4-6-4-3 4-6z" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
             </div>
             <span className="font-semibold text-gray-800">Clawini</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2.5 touch-active rounded-full active:bg-gray-100 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={onClose} className="p-2 rounded-full active:bg-gray-100">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* New Chat Button */}
         <div className="p-3">
           <button
             onClick={onNewChat}
-            className="w-full flex items-center gap-3 px-4 py-3.5 bg-gray-100 active:bg-gray-200 rounded-xl transition-colors text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-gray-100 active:bg-gray-200 rounded-xl transition-colors text-left"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            <span className="text-gray-700 font-medium">Uj beszelgetes</span>
+            <span className="text-gray-700 font-medium">Új beszélgetés</span>
           </button>
         </div>
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto px-2">
-          <div className="text-xs font-medium text-gray-500 uppercase px-3 py-2">
-            Korabbiak
-          </div>
+        <div className="flex-1 overflow-y-auto px-2 pb-2">
           {chats.length === 0 ? (
             <div className="px-3 py-8 text-center text-gray-400 text-sm">
-              Nincsenek korabbi beszelgetesek
+              Nincsenek korábbi beszélgetések
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {chats.map((chat) => (
                 <div
                   key={chat.id}
                   onClick={() => onSelectChat(chat.id)}
-                  className={`group flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+                  className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     currentChatId === chat.id
                       ? 'bg-blue-50 text-blue-700'
-                      : 'active:bg-gray-100 text-gray-700'
+                      : 'active:bg-gray-100 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                   </svg>
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm font-medium">{chat.title}</div>
                     <div className="text-xs text-gray-400">{formatDate(chat.updated_at)}</div>
                   </div>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteChat(chat.id);
-                    }}
-                    className="p-2 active:bg-red-100 rounded-lg transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id); }}
+                    className="p-1.5 opacity-0 group-hover:opacity-100 active:bg-red-50 rounded-lg transition-all"
                   >
                     <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                     </svg>
                   </button>
                 </div>
@@ -130,34 +106,25 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-gray-100 space-y-2">
           {user ? (
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                {getUserInitials()}
+                {user.email?.charAt(0).toUpperCase() || '?'}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-800 truncate">{user.email}</div>
-                <div className="text-xs text-gray-500">Bejelentkezve</div>
+                <div className="text-xs text-green-600">Bejelentkezve</div>
               </div>
-              <button 
-                onClick={onSettings}
-                className="p-2.5 active:bg-gray-100 rounded-full transition-colors"
-                title="Beallitasok"
-              >
+              <button onClick={onSettings} className="p-2 active:bg-gray-100 rounded-full" title="Beállítások">
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
-              <button 
-                onClick={onSignOut}
-                className="p-2.5 active:bg-gray-100 rounded-full transition-colors"
-                title="Kijelentkezes"
-              >
+              <button onClick={onSignOut} className="p-2 active:bg-gray-100 rounded-full" title="Kijelentkezés">
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                 </svg>
               </button>
             </div>
@@ -167,9 +134,9 @@ export default function Sidebar({
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500 active:bg-blue-600 text-white rounded-xl transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
               </svg>
-              Bejelentkezes
+              Bejelentkezés
             </button>
           )}
         </div>
