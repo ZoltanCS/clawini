@@ -8,6 +8,7 @@ interface MessageBubbleProps {
   onRegenerate?: () => void;
   onBranch?: () => void;
   modelLabel?: string;
+  highlighted?: boolean;
 }
 
 function CopyToast({ show }: { show: boolean }) {
@@ -22,7 +23,7 @@ function CopyToast({ show }: { show: boolean }) {
   );
 }
 
-export default function MessageBubble({ message, onRegenerate, onBranch, modelLabel = 'AI' }: MessageBubbleProps) {
+export default function MessageBubble({ message, onRegenerate, onBranch, modelLabel = 'AI', highlighted }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -97,7 +98,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
 
   return (
     <div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 group`}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 group ${highlighted ? 'animate-highlight-branch rounded-2xl' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >

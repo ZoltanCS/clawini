@@ -13,6 +13,7 @@ interface MessageListProps {
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
   modelLabel?: string;
+  regeneratingId?: string | null;
 }
 
 function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
@@ -37,7 +38,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch, modelLabel = 'AI' }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -116,7 +117,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   if (messages.length === 0) return null;
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
           <div key={message.id} className="animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>

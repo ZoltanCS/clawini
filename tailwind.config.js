@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -8,44 +9,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        nim: {
-          green: '#76b900',
-          'green-dark': '#5a8e00',
-        }
+        surface: 'var(--surface)',
+        'surface-hover': 'var(--surface-hover)',
+        'surface-elevated': 'var(--surface-elevated)',
+        border: 'var(--border)',
+        fg: 'var(--fg)',
+        'fg-secondary': 'var(--fg-secondary)',
+        'fg-muted': 'var(--fg-muted)',
+        accent: 'var(--accent)',
+        'accent-hover': 'var(--accent-hover)',
       },
       animation: {
-        'message-slide-in': 'messageSlideIn 0.2s ease-out forwards',
-        'slide-down': 'slideDown 0.2s ease-out forwards',
+        'message-slide-in': 'messageSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-down': 'slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'fade-in': 'fadeIn 0.2s ease-out forwards',
-        'slide-in-left': 'slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-in-left': 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-up': 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-up-fade': 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'scale-in': 'scaleIn 0.2s ease-out forwards',
         'bounce': 'bounce 1.4s infinite ease-in-out',
-      },
-      keyframes: {
-        messageSlideIn: {
-          from: { opacity: '0', transform: 'translateY(10px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        slideDown: {
-          from: { opacity: '0', transform: 'translateY(-8px)', maxHeight: '0' },
-          to: { opacity: '1', transform: 'translateY(0)', maxHeight: '100px' },
-        },
-        fadeIn: {
-          from: { opacity: '0' },
-          to: { opacity: '1' },
-        },
-        slideInLeft: {
-          from: { transform: 'translateX(-100%)' },
-          to: { transform: 'translateX(0)' },
-        },
-        slideUp: {
-          from: { transform: 'translateY(100%)' },
-          to: { transform: 'translateY(0)' },
-        },
-        bounce: {
-          '0%, 80%, 100%': { transform: 'scale(0.6)' },
-          '40%': { transform: 'scale(1)' },
-        },
+        'morph-in': 'morphIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
     },
   },

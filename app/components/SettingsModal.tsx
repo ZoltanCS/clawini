@@ -4,14 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/app/lib/supabase';
 import { User } from '@supabase/supabase-js';
 
+const SYSTEM_PROMPT_KEY = 'systemPrompt';
+const DEFAULT_SYSTEM_PROMPT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
+const SELECTED_MODEL_KEY = 'selectedModel';
+const SHOW_TOKEN_KEY = 'showTokenUsage';
+const EXPORT_FORMAT_KEY = 'exportFormat';
+
+const DEFAULT_MODEL_ID = 'meta/llama-3.1-70b-instruct';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
 }
-
-const SYSTEM_PROMPT_KEY = 'systemPrompt';
-const DEFAULT_SYSTEM_PROMPT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
 
 export default function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
@@ -26,11 +31,23 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   });
 
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [defaultModel, setDefaultModel] = useState(DEFAULT_MODEL_ID);
+  const [showTokenUsage, setShowTokenUsage] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'markdown' | 'json' | 'clipboard'>('markdown');
 
   useEffect(() => {
     if (isOpen) {
       const savedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
       if (savedPrompt) setSystemPrompt(savedPrompt);
+
+      const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
+      if (savedModel) setDefaultModel(savedModel);
+
+      const savedToken = localStorage.getItem(SHOW_TOKEN_KEY);
+      if (savedToken) setShowTokenUsage(savedToken === 'true');
+
+      const savedExport = localStorage.getItem(EXPORT_FORMAT_KEY);
+      if (savedExport) setExportFormat(savedExport as any);
     }
     if (user) {
       loadUserProfile();
@@ -60,6 +77,10 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     if (!user) return;
     setIsLoading(true);
     localStorage.setItem(SYSTEM_PROMPT_KEY, systemPrompt);
+    localStorage.setItem(SELECTED_MODEL_KEY, defaultModel);
+    localStorage.setItem(SHOW_TOKEN_KEY, String(showTokenUsage));
+    localStorage.setItem(EXPORT_FORMAT_KEY, exportFormat);
+
     const { error } = await supabase
       .from('profiles')
       .upsert({
@@ -84,17 +105,17 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   if (!isOpen) return null;
 
   const tabs = [
-    { id: 'general', label: 'Altalanos', icon: '\u2699' },
+    { id: 'general', label: 'Általános', icon: '\u2699' },
     { id: 'prompt', label: 'AI Prompt', icon: '\uD83E\uDDE0' },
-    { id: 'account', label: 'Fiok', icon: '\uD83D\uDC64' },
-    { id: 'appearance', label: 'Megjelenes', icon: '\uD83C\uDFA8' },
+    { id: 'account', label: 'Fiók', icon: '\uD83D\uDC64' },
+    { id: 'appearance', label: 'Megjelenés', icon: '\uD83C\uDFA8' },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
         <div className="flex justify-between items-center p-5 border-b">
-          <h2 className="text-xl font-semibold text-gray-800">Beallitasok</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Beállítások</h2>
           <button onClick={onClose} className="p-2 active:bg-gray-100 rounded-full touch-active">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -122,6 +143,50 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             {activeTab === 'general' && (
               <div className="space-y-5">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alapértelmezett modell</label>
+                  <div className="text-xs text-gray-400 mb-2">A modell választóban is módosítható</div>
+                  <div className="px-3 py-2.5 bg-gray-50 rounded-lg text-sm text-gray-600 border border-gray-200">
+                    {defaultModel.split('/').pop() || defaultModel}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-gray-800">Token használat mutatása</div>
+                    <div className="text-sm text-gray-500">Token számláló megjelenítése alapból</div>
+                  </div>
+                  <button
+                    onClick={() => setShowTokenUsage(!showTokenUsage)}
+                    className={`w-12 h-6 rounded-full transition-colors ${showTokenUsage ? 'bg-blue-500' : 'bg-gray-300'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${showTokenUsage ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Export formátum</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'markdown' as const, label: 'Markdown' },
+                      { value: 'json' as const, label: 'JSON' },
+                      { value: 'clipboard' as const, label: 'Vágólap' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setExportFormat(opt.value)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          exportFormat === opt.value
+                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-gray-200 text-gray-600 active:bg-gray-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Nyelv</label>
                   <select
                     value={settings.language}
@@ -134,8 +199,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-gray-800">Ertesitesek</div>
-                    <div className="text-sm text-gray-500">Kapj ertesitest uj uzenetekről</div>
+                    <div className="font-medium text-gray-800">Értesítések</div>
+                    <div className="text-sm text-gray-500">Kapj értesítést új üzenetekről</div>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, notifications: !settings.notifications })}
@@ -146,8 +211,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-gray-800">Automatikus mentes</div>
-                    <div className="text-sm text-gray-500">Beszelgetesek automatikus mentese</div>
+                    <div className="font-medium text-gray-800">Automatikus mentés</div>
+                    <div className="text-sm text-gray-500">Beszélgetések automatikus mentése</div>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, autoSave: !settings.autoSave })}
@@ -166,10 +231,10 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   <textarea
                     value={systemPrompt}
                     onChange={(e) => setSystemPrompt(e.target.value)}
-                    rows={6}
+                    rows={8}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none text-base"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Az AI asszisztens szemelyiseget es viselkedeset hatarozza meg. A promptba automatikusan bekerulnek: datum, ido, idozona, nap, honap, ev.</p>
+                  <p className="text-xs text-gray-400 mt-1">Az AI asszisztens személyiségét és viselkedését határozza meg. A promptba automatikusan bekerülnek: dátum, idő, időzóna, nap, hónap, év.</p>
                 </div>
               </div>
             )}
@@ -177,7 +242,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             {activeTab === 'account' && (
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Teljes nev</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Teljes név</label>
                   <input
                     type="text" value={settings.fullName}
                     onChange={(e) => setSettings({ ...settings, fullName: e.target.value })}
@@ -190,8 +255,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   <input type="email" value={user?.email || ''} disabled className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
                 </div>
                 <div className="pt-4 border-t">
-                  <h3 className="text-red-600 font-medium mb-2">Veszelyes zona</h3>
-                  <button onClick={handleDeleteAccount} className="px-4 py-2.5 border border-red-300 text-red-600 rounded-lg active:bg-red-50 transition-colors">Fiok torlese</button>
+                  <h3 className="text-red-600 font-medium mb-2">Veszélyes zóna</h3>
+                  <button onClick={handleDeleteAccount} className="px-4 py-2.5 border border-red-300 text-red-600 rounded-lg active:bg-red-50 transition-colors">Fiók törlése</button>
                 </div>
               </div>
             )}
@@ -199,7 +264,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             {activeTab === 'appearance' && (
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Tema</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Téma</label>
                   <div className="grid grid-cols-3 gap-3">
                     {(['light', 'dark', 'system'] as const).map((theme) => (
                       <button
@@ -208,7 +273,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                         className={`p-4 border-2 rounded-xl text-center transition-colors ${settings.theme === theme ? 'border-blue-500 bg-blue-50' : 'border-gray-200 active:border-gray-300'}`}
                       >
                         <div className="text-2xl mb-1">{theme === 'light' ? '\u2600' : theme === 'dark' ? '\uD83C\uDF19' : '\uD83D\uDCBB'}</div>
-                        <div className="text-sm font-medium">{theme === 'light' ? 'Vilagos' : theme === 'dark' ? 'Sotet' : 'Rendszer'}</div>
+                        <div className="text-sm font-medium">{theme === 'light' ? 'Világos' : theme === 'dark' ? 'Sötét' : 'Rendszer'}</div>
                       </button>
                     ))}
                   </div>
@@ -217,9 +282,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             )}
 
             <div className="mt-8 flex justify-end gap-2">
-              <button onClick={onClose} className="px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg active:bg-gray-50 transition-colors">Megsem</button>
+              <button onClick={onClose} className="px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg active:bg-gray-50 transition-colors">Mégsem</button>
               <button onClick={handleSave} disabled={isLoading} className="px-6 py-2.5 bg-blue-500 active:bg-blue-600 disabled:bg-gray-300 text-white font-medium rounded-lg transition-colors">
-                {isLoading ? 'Mentes...' : 'Mentes'}
+                {isLoading ? 'Mentés...' : 'Mentés'}
               </button>
             </div>
           </div>
