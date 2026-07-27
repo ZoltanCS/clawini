@@ -52,17 +52,17 @@ export default function WelcomeScreen({ onSuggestionClick, currentChat }: Welcom
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 overflow-y-auto">
       <div className="mb-6 animate-slideUpFade">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-200 animate-float">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg animate-float" style={{ boxShadow: '0 10px 30px -10px rgba(59,130,246,0.3)' }}>
           <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
         </div>
       </div>
 
-      <h1 className="text-2xl font-semibold text-center text-gray-800 mb-1.5 animate-slideUpFade" style={{ animationDelay: '0.1s' }}>
+      <h1 className="text-2xl font-semibold text-center mb-1.5 animate-slideUpFade" style={{ animationDelay: '0.1s', color: 'var(--fg)' }}>
         Miben segíthetek ma?
       </h1>
-      <p className="text-gray-500 text-center mb-8 text-sm animate-slideUpFade" style={{ animationDelay: '0.15s' }}>
+      <p className="text-center mb-8 text-sm animate-slideUpFade" style={{ animationDelay: '0.15s', color: 'var(--fg-muted)' }}>
         Válassz egy modellt a fejlécből, és indíts beszélgetést
       </p>
 
@@ -71,14 +71,15 @@ export default function WelcomeScreen({ onSuggestionClick, currentChat }: Welcom
           <button
             key={index}
             onClick={() => onSuggestionClick(suggestion.description)}
-            className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-xl active:border-blue-400 active:shadow-md transition-all duration-150 text-center hover:shadow-lg hover:border-gray-300 hover-scale"
+            className="flex flex-col items-center gap-2.5 p-4 rounded-xl transition-all duration-150 text-center hover-scale"
+            style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)', color: 'var(--fg)' }}
           >
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 transition-transform duration-200 group-hover:scale-110">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent)' }}>
               {suggestion.icon}
             </div>
             <div>
-              <div className="font-medium text-gray-800 text-sm">{suggestion.title}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{suggestion.description}</div>
+              <div className="font-medium text-sm" style={{ color: 'var(--fg)' }}>{suggestion.title}</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>{suggestion.description}</div>
             </div>
           </button>
         ))}

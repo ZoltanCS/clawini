@@ -242,10 +242,10 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="relative bg-white rounded-[28px] shadow-lg border border-gray-200 transition-shadow duration-200 focus-within:shadow-xl focus-within:border-blue-300">
+      <div className="relative rounded-[28px] shadow-lg transition-shadow duration-200 focus-within:shadow-xl" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
         {/* Upload progress bar */}
         {isUploading && uploadProgress > 0 && (
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 rounded-t-[28px] overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-[28px] overflow-hidden" style={{ background: 'var(--border)' }}>
             <div
               className="h-full bg-blue-500 transition-all duration-300 ease-out rounded-t-[28px]"
               style={{ width: `${uploadProgress}%` }}
@@ -261,7 +261,7 @@ export default function ChatInput({
                   <img
                     src={preview}
                     alt={`Preview ${index + 1}`}
-                    className="h-20 w-auto rounded-lg object-cover border border-gray-200"
+                    className="h-20 w-auto rounded-lg object-cover" style={{ border: '1px solid var(--border)' }}
                   />
                   <button
                     type="button"
@@ -289,10 +289,11 @@ export default function ChatInput({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading || isUploading}
-            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full active:bg-gray-100 disabled:opacity-50 transition-all duration-150 hover:bg-gray-50 hover-scale touch-active"
+            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-50 transition-all duration-150 hover-scale touch-active"
             title="Kép feltöltése"
+            style={{ color: 'var(--fg-muted)' }}
           >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
             </svg>
           </button>
@@ -316,7 +317,8 @@ export default function ChatInput({
               placeholder={placeholder}
               rows={1}
               disabled={isLoading || isUploading}
-              className="w-full bg-transparent border-none outline-none resize-none py-2.5 px-1 text-gray-800 placeholder-gray-400 max-h-[120px] min-h-[44px] text-[16px] leading-relaxed transition-opacity duration-200 disabled:opacity-50"
+              className="w-full bg-transparent border-none outline-none resize-none py-2.5 px-1 max-h-[120px] min-h-[44px] text-[16px] leading-relaxed transition-opacity duration-200 disabled:opacity-50"
+              style={{ color: 'var(--fg)' }}
             />
           </div>
 

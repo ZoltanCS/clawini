@@ -413,7 +413,7 @@ export default function ChatInterface() {
 
     const msgIdx = messages.findIndex(m => m.id === messageId);
     if (msgIdx === -1) return;
-    const endIdx = messages[msgIdx].role === 'assistant' ? msgIdx : msgIdx + 1;
+    const endIdx = msgIdx + 1;
     if (endIdx <= 0) return;
 
     const toCopy = messages.slice(0, endIdx);

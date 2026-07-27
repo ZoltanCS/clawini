@@ -26,9 +26,9 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
-        </div>
-        <div className="flex items-center gap-1.5 ml-7">
+              <span className="text-sm font-medium" style={{ color: 'var(--fg-secondary)' }}>{modelLabel}</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-7">
           <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
           <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
           <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
@@ -138,9 +138,9 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--fg-secondary)' }}>{modelLabel}</span>
               </div>
-              <div className="text-[15px] leading-relaxed whitespace-pre-wrap streaming-cursor">{streamingContent}</div>
+              <div className="text-[15px] leading-relaxed whitespace-pre-wrap streaming-cursor" style={{ color: 'var(--fg)' }}>{streamingContent}</div>
             </div>
           </div>
         )}

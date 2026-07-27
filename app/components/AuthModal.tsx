@@ -41,13 +41,13 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="rounded-2xl shadow-xl w-full max-w-md p-6" style={{ background: 'var(--surface-elevated)' }}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-800">
+          <h2 className="text-2xl font-semibold" style={{ color: 'var(--fg)' }}>
             {isSignUp ? 'Regisztráció' : 'Bejelentkezés'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+          <button onClick={onClose} className="p-2 rounded-full touch-active" style={{ color: 'var(--fg-muted)' }}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -55,30 +55,32 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+          <div className="mb-4 p-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 rounded-lg text-base"
+              style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jelszó</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Jelszó</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 rounded-lg text-base"
+              style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
               required
             />
           </div>
@@ -86,7 +88,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-medium rounded-lg transition-colors"
+            className="w-full py-3 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+            style={{ background: 'var(--accent)' }}
           >
             {isLoading ? 'Töltés...' : isSignUp ? 'Regisztráció' : 'Bejelentkezés'}
           </button>
@@ -95,10 +98,10 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full" style={{ borderTop: '1px solid var(--border)' }}></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">vagy</span>
+              <span className="px-2" style={{ background: 'var(--surface-elevated)', color: 'var(--fg-muted)' }}>vagy</span>
             </div>
           </div>
 
@@ -106,7 +109,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
             <button
               onClick={() => handleOAuth('google')}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-center gap-3 px-4 py-2 rounded-lg transition-colors"
+              style={{ border: '1px solid var(--border)', color: 'var(--fg)' }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -122,7 +126,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
         <div className="mt-6 text-center">
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-blue-500 hover:text-blue-600 text-sm"
+            className="text-sm"
+            style={{ color: 'var(--accent)' }}
           >
             {isSignUp ? 'Már van fiókod? Jelentkezz be' : 'Nincs fiókod? Regisztrálj'}
           </button>
