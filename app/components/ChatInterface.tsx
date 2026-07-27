@@ -61,6 +61,8 @@ export default function ChatInterface() {
   const [branchToast, setBranchToast] = useState<string | null>(null);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const partialContentRef = useRef<string>('');
+  const pendingChatIdRef = useRef<string | null>(null);
 
   // Theme
   useEffect(() => {
@@ -200,7 +202,6 @@ export default function ChatInterface() {
     const decoder = new TextDecoder();
     let accumulated = '';
     let buffer = '';
-    setStreamingContent('');
 
     if (reader) {
       try {
@@ -231,6 +232,7 @@ export default function ChatInterface() {
         }
       } catch {}
     }
+    partialContentRef.current = accumulated;
     return accumulated;
   }, []);
 
@@ -295,13 +297,27 @@ export default function ChatInterface() {
       const accumulatedContent = await streamResponse(response, abort.signal);
       setStreamingContent('');
 
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted) {
+        const partial = partialContentRef.current;
+        if (partial) {
+          await addMessage(chatId, 'assistant', partial);
+          setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
+        }
+        return;
+      }
 
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error: any) {
-      if (error?.name === 'AbortError') return;
+      if (error?.name === 'AbortError') {
+        const partial = partialContentRef.current;
+        if (partial) {
+          await addMessage(chatId, 'assistant', partial);
+          setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
+        }
+        return;
+      }
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       await addMessage(chatId, 'assistant', `Hiba: ${msg}`);
       setError({ message: msg, timestamp: Date.now(), retryFn: () => { handleSendMessage(content, imageUrls); } });

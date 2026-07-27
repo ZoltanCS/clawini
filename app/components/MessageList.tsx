@@ -117,7 +117,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   if (messages.length === 0) return null;
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
           <div key={message.id} className="animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>

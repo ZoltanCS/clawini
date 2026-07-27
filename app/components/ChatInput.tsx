@@ -147,13 +147,6 @@ export default function ChatInput({
     }
   }, [input]);
 
-  // Scroll input into view on focus (mobile keyboard)
-  const handleFocus = () => {
-    setTimeout(() => {
-      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-  };
-
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -313,7 +306,6 @@ export default function ChatInput({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onFocus={handleFocus}
               placeholder={placeholder}
               rows={1}
               disabled={isLoading || isUploading}

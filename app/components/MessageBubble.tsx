@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Message } from '@/app/types';
 
 interface MessageBubbleProps {
@@ -9,6 +9,12 @@ interface MessageBubbleProps {
   onBranch?: () => void;
   modelLabel?: string;
   highlighted?: boolean;
+}
+
+interface ContentSegment {
+  type: 'text' | 'code';
+  language?: string;
+  content: string;
 }
 
 function CopyToast({ show }: { show: boolean }) {
@@ -35,12 +41,13 @@ function HtmlPreviewModal({ html, onClose }: { html: string; onClose: () => void
             </svg>
           </button>
         </div>
-        <div className="flex-1 overflow-auto p-4" style={{ background: 'var(--surface)' }}>
+        <div className="flex-1 overflow-auto" style={{ background: 'white' }}>
           <iframe
             srcDoc={html}
             className="w-full h-full border-0"
             title="HTML Preview"
             sandbox="allow-scripts"
+            style={{ minHeight: '400px' }}
           />
         </div>
       </div>
@@ -48,21 +55,144 @@ function HtmlPreviewModal({ html, onClose }: { html: string; onClose: () => void
   );
 }
 
+function CodeBlock({ code, language }: { code: string; language?: string }) {
+  const [copied, setCopied] = useState(false);
+  const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+  const isHtml = language === 'html';
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <>
+      <div style={{ margin: '12px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-3 py-1.5" style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
+          <span className="text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>{language || 'code'}</span>
+          <div className="flex items-center gap-1">
+            {isHtml && (
+              <button
+                onClick={() => setShowHtmlPreview(true)}
+                className="text-[11px] px-2 py-0.5 rounded transition-colors"
+                style={{ border: '1px solid var(--accent)', color: 'var(--accent)' }}
+              >
+                Előnézet
+              </button>
+            )}
+            <button onClick={handleCopy} className="p-1 rounded transition-colors" style={{ color: 'var(--fg-muted)' }}>
+              {copied ? (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+        <pre className="overflow-x-auto p-3 text-[13px] leading-relaxed" style={{ background: 'var(--surface-hover)', color: 'var(--fg)' }}><code>{code}</code></pre>
+      </div>
+      {showHtmlPreview && (
+        <HtmlPreviewModal
+          html={code}
+          onClose={() => setShowHtmlPreview(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function TextContent({ html }: { html: string }) {
+  return <div className="text-[15px] leading-relaxed break-words" style={{ color: 'var(--fg)' }} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function parseContent(content: string): ContentSegment[] {
+  const segments: ContentSegment[] = [];
+  const regex = /```(\w+)?\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: 'code', language: match[1] || undefined, content: match[2] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({ type: 'text', content: content.slice(lastIndex) });
+  }
+
+  return segments;
+}
+
+function formatInlineMarkdown(text: string): string {
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  html = html.replace(/^#### (.+)$/gm, '<h4 class="text-lg font-semibold mt-3 mb-2" style="color:var(--fg)">$1</h4>');
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-4 mb-2" style="color:var(--fg)">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold mt-4 mb-3" style="color:var(--fg)">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-3xl font-bold mt-4 mb-3" style="color:var(--fg)">$1</h1>');
+
+  const tableRegex = /\|(.+)\|\n\|[-:\| ]+\|\n((?:\|.+\|\n?)+)/g;
+  html = html.replace(tableRegex, (match, header, rows) => {
+    const headers = header.split('|').map((h: string) => h.trim()).filter((h: string) => h);
+    const rowData = rows.trim().split('\n').map((row: string) =>
+      row.split('|').map((cell: string) => cell.trim()).filter((cell: string) => cell)
+    );
+    let tableHtml = '<div class="overflow-x-auto my-3"><table class="min-w-full border-collapse" style="border:1px solid var(--border)">';
+    tableHtml += '<thead><tr style="background:var(--surface-hover)">';
+    headers.forEach((h: string) => {
+      tableHtml += `<th style="border:1px solid var(--border);padding:8px 12px;text-align:left;font-weight:600;color:var(--fg)">${h}</th>`;
+    });
+    tableHtml += '</tr></thead><tbody>';
+    rowData.forEach((row: string[]) => {
+      tableHtml += '<tr>';
+      row.forEach((cell: string) => {
+        tableHtml += `<td style="border:1px solid var(--border);padding:8px 12px;color:var(--fg)">${cell}</td>`;
+      });
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</tbody></table></div>';
+    return tableHtml;
+  });
+
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  html = html.replace(/`([^`]+)`/g, (match, code) => {
+    return `<code style="background:var(--surface-hover);padding:1px 4px;border-radius:4px;font-size:13px;color:var(--fg)">${code}</code>`;
+  });
+
+  html = html.replace(/^\s*[-*+] (.+)$/gm, '<li style="margin-left:16px;color:var(--fg)">$1</li>');
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul class="list-disc my-2">$&</ul>');
+  html = html.replace(/^\s*\d+\. (.+)$/gm, '<li style="margin-left:16px;color:var(--fg)">$1</li>');
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => {
+    if (match.includes('<ul')) return match;
+    return '<ol class="list-decimal my-2">' + match + '</ol>';
+  });
+
+  html = html.replace(/\n/g, '<br/>');
+  return html;
+}
+
 export default function MessageBubble({ message, onRegenerate, onBranch, modelLabel = 'AI', highlighted }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [fullHtmlPreview, setFullHtmlPreview] = useState<string | null>(null);
 
-  const extractHtmlBlocks = (content: string): string[] => {
-    const blocks: string[] = [];
-    const regex = /```html\n([\s\S]*?)```/g;
-    let match;
-    while ((match = regex.exec(content)) !== null) {
-      blocks.push(match[1]);
-    }
-    return blocks;
-  };
+  const segments = useMemo(() => parseContent(message.content || ''), [message.content]);
+  const hasHtml = useMemo(() => segments.some(s => s.type === 'code' && s.language === 'html'), [segments]);
 
   const imageUrls: string[] = (() => {
     if (!message.image_url) return [];
@@ -74,72 +204,18 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
     }
   })();
 
-  const formatContent = (content: string) => {
-    let formatted = content;
-
-    formatted = formatted.replace(/^#### (.+)$/gm, '<h4 class="text-lg font-semibold mt-3 mb-2" style="color:var(--fg)">$1</h4>');
-    formatted = formatted.replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-4 mb-2" style="color:var(--fg)">$1</h3>');
-    formatted = formatted.replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold mt-4 mb-3" style="color:var(--fg)">$1</h2>');
-    formatted = formatted.replace(/^# (.+)$/gm, '<h1 class="text-3xl font-bold mt-4 mb-3" style="color:var(--fg)">$1</h1>');
-
-    const tableRegex = /\|(.+)\|\n\|[-:\| ]+\|\n((?:\|.+\|\n?)+)/g;
-    formatted = formatted.replace(tableRegex, (match, header, rows) => {
-      const headers = header.split('|').map((h: string) => h.trim()).filter((h: string) => h);
-      const rowData = rows.trim().split('\n').map((row: string) =>
-        row.split('|').map((cell: string) => cell.trim()).filter((cell: string) => cell)
-      );
-
-      let tableHtml = '<div class="overflow-x-auto my-3"><table class="min-w-full border-collapse" style="border:1px solid var(--border)">';
-      tableHtml += '<thead><tr style="background:var(--surface-hover)">';
-      headers.forEach((h: string) => {
-        tableHtml += `<th style="border:1px solid var(--border);padding:8px 12px;text-align:left;font-weight:600;color:var(--fg)">${h}</th>`;
-      });
-      tableHtml += '</tr></thead><tbody>';
-
-      rowData.forEach((row: string[]) => {
-        tableHtml += '<tr>';
-        row.forEach((cell: string) => {
-          tableHtml += `<td style="border:1px solid var(--border);padding:8px 12px;color:var(--fg)">${cell}</td>`;
-        });
-        tableHtml += '</tr>';
-      });
-      tableHtml += '</tbody></table></div>';
-      return tableHtml;
-    });
-
-    const htmlBlocks = extractHtmlBlocks(content);
-    let blockIndex = 0;
-    formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-      const isHtml = lang === 'html';
-      const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const previewBtn = isHtml ? `<button onclick="this.parentElement.querySelector('.preview-frame').classList.toggle('hidden')" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);background:transparent;cursor:pointer;margin-right:6px">Előnézet</button>` : '';
-      const previewFrame = isHtml ? `<div class="hidden preview-frame" style="margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:white;max-height:400px"><iframe srcdoc="${encodeURIComponent(code)}" style="width:100%;height:300px;border:0" sandbox="allow-scripts"></iframe></div>` : '';
-      return `<div style="position:relative">${previewBtn}<pre style="background:var(--surface-hover);padding:12px;border-radius:8px;overflow-x:auto;margin:12px 0;border:1px solid var(--border)"><code style="color:var(--fg);font-size:13px">${escaped}</code></pre>${previewFrame}</div>`;
-    });
-
-    formatted = formatted.replace(/`([^`]+)`/g, (match, code) => {
-      return `<code style="background:var(--surface-hover);padding:1px 4px;border-radius:4px;font-size:13px;color:var(--fg)">${code}</code>`;
-    });
-
-    formatted = formatted.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-    formatted = formatted.replace(/^\s*[-*+] (.+)$/gm, '<li style="margin-left:16px;color:var(--fg)">$1</li>');
-    formatted = formatted.replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul class="list-disc my-2">$&</ul>');
-    formatted = formatted.replace(/^\s*\d+\. (.+)$/gm, '<li style="margin-left:16px;color:var(--fg)">$1</li>');
-    formatted = formatted.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => {
-      if (match.includes('<ul')) return match;
-      return '<ol class="list-decimal my-2">' + match + '</ol>';
-    });
-
-    return formatted;
-  };
-
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFullPreview = () => {
+    const allHtml = segments
+      .filter(s => s.type === 'code' && s.language === 'html')
+      .map(s => s.content)
+      .join('\n');
+    setFullHtmlPreview(allHtml);
   };
 
   return (
@@ -150,9 +226,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
         onMouseLeave={() => setShowActions(false)}
       >
         <div
-          className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl break-words overflow-hidden min-w-0 transition-shadow duration-200 ${
-            isUser ? '' : ''
-          }`}
+          className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl break-words overflow-hidden min-w-0 transition-shadow duration-200`}
           style={{
             background: isUser ? 'var(--bubble-user)' : 'var(--bubble-ai)',
             color: 'var(--fg)',
@@ -185,19 +259,23 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
           )}
 
           {message.content && (
-            <div
-              className="text-[15px] leading-relaxed break-words"
-              style={{ color: 'var(--fg)' }}
-              dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
-            />
+            <div>
+              {segments.map((segment, i) =>
+                segment.type === 'code' ? (
+                  <CodeBlock key={i} code={segment.content} language={segment.language} />
+                ) : (
+                  <TextContent key={i} html={formatInlineMarkdown(segment.content)} />
+                )
+              )}
+            </div>
           )}
 
-          <div className={`flex items-center gap-1 mt-3 transition-all duration-200`} style={{ opacity: showActions || !isUser ? 1 : 0.6 }}>
+          <div className="flex items-center gap-1 mt-3 transition-all duration-200" style={{ opacity: showActions || !isUser ? 1 : 0.6 }}>
             {!isUser && (
               <>
-                {extractHtmlBlocks(message.content).length > 0 && (
+                {hasHtml && (
                   <button
-                    onClick={() => setPreviewHtml(message.content)}
+                    onClick={handleFullPreview}
                     className="p-1.5 rounded-full transition-all duration-150 hover-scale"
                     title="HTML előnézet"
                     style={{ color: 'var(--fg-muted)' }}
@@ -263,10 +341,10 @@ export default function MessageBubble({ message, onRegenerate, onBranch, modelLa
         </div>
       </div>
 
-      {previewHtml && (
+      {fullHtmlPreview && (
         <HtmlPreviewModal
-          html={extractHtmlBlocks(previewHtml).join('\n')}
-          onClose={() => setPreviewHtml(null)}
+          html={fullHtmlPreview}
+          onClose={() => setFullHtmlPreview(null)}
         />
       )}
     </>
