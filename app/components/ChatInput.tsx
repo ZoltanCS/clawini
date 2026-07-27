@@ -9,6 +9,9 @@ interface ChatInputProps {
   onImageUpload?: (file: File) => Promise<string | null>;
   onStop?: () => void;
   placeholder?: string;
+  editValue?: string;
+  editImageUrls?: string[];
+  onCancelEdit?: () => void;
 }
 
 function SendButton({ disabled, isLoading, onStop }: { disabled: boolean; isLoading: boolean; onStop?: () => void }) {
@@ -43,10 +46,12 @@ function SendButton({ disabled, isLoading, onStop }: { disabled: boolean; isLoad
 export default function ChatInput({
   onSend, isLoading, onImageUpload, onStop,
   placeholder = 'Írj bármit...',
+  editValue, editImageUrls, onCancelEdit,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingEditUrls, setExistingEditUrls] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -54,6 +59,23 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (editValue !== undefined) {
+      setInput(editValue);
+      textareaRef.current?.focus();
+    }
+  }, [editValue]);
+
+  useEffect(() => {
+    if (editImageUrls && editImageUrls.length > 0) {
+      setExistingEditUrls(editImageUrls);
+      setImagePreviews(editImageUrls);
+    } else if (editImageUrls && editImageUrls.length === 0) {
+      setExistingEditUrls([]);
+      setImagePreviews([]);
+    }
+  }, [editImageUrls]);
 
   const showToast = (message: string, type: 'error' | 'success' = 'error') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -104,9 +126,9 @@ export default function ChatInput({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && selectedImages.length === 0) || isLoading || isUploading) return;
+    if ((!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isLoading || isUploading) return;
 
-    let imageUrls: string[] | null = null;
+    let allImageUrls: string[] = [...existingEditUrls];
 
     if (selectedImages.length > 0 && onImageUpload) {
       setIsUploading(true);
@@ -116,21 +138,24 @@ export default function ChatInput({
         const url = await onImageUpload(selectedImages[i]);
         urls.push(url);
       }
-      imageUrls = urls.filter((url): url is string => url !== null);
-      if (imageUrls.length === 0) {
+      const uploadedUrls = urls.filter((url): url is string => url !== null);
+      if (uploadedUrls.length === 0 && allImageUrls.length === 0) {
         showToast('Nem sikerült feltölteni a képeket');
         setIsUploading(false);
         setUploadProgress(0);
         return;
       }
+      allImageUrls = [...allImageUrls, ...uploadedUrls];
       setIsUploading(false);
       setUploadProgress(0);
     }
 
-    onSend(input.trim(), imageUrls);
+    onSend(input.trim(), allImageUrls.length > 0 ? allImageUrls : null);
     setInput('');
     setSelectedImages([]);
-    setImagePreviews(prev => { prev.forEach(u => URL.revokeObjectURL(u)); return []; });
+    setExistingEditUrls([]);
+    setImagePreviews(prev => { prev.forEach((u, i) => { if (i >= existingEditUrls.length) URL.revokeObjectURL(u); }); return []; });
+    onCancelEdit?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -184,11 +209,17 @@ export default function ChatInput({
   };
 
   const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => {
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, i) => i !== index);
-    });
+    if (index < existingEditUrls.length) {
+      setExistingEditUrls(prev => prev.filter((_, i) => i !== index));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    } else {
+      const fileIdx = index - existingEditUrls.length;
+      setSelectedImages(prev => prev.filter((_, i) => i !== fileIdx));
+      setImagePreviews(prev => {
+        URL.revokeObjectURL(prev[index]);
+        return prev.filter((_, i) => i !== index);
+      });
+    }
   };
 
   return (
@@ -314,8 +345,21 @@ export default function ChatInput({
             />
           </div>
 
+          {existingEditUrls.length > 0 || editValue !== undefined ? (
+            <button
+              type="button"
+              onClick={() => { setInput(''); setExistingEditUrls([]); setImagePreviews([]); onCancelEdit?.(); }}
+              className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-all duration-150 hover-scale"
+              title="Mégse"
+              style={{ color: 'var(--fg-muted)' }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : null}
           <SendButton
-            disabled={(!input.trim() && selectedImages.length === 0) || isLoading || isUploading}
+            disabled={(!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isLoading || isUploading}
             isLoading={isLoading || isUploading}
             onStop={onStop}
           />

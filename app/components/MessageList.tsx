@@ -12,6 +12,8 @@ interface MessageListProps {
   streamingContent?: string;
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
+  onEdit?: (messageId: string) => void;
+  onDelete?: (messageId: string) => void;
   modelLabel?: string;
   regeneratingId?: string | null;
 }
@@ -38,7 +40,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch, modelLabel = 'AI', regeneratingId }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -125,6 +127,8 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
               message={message}
               onRegenerate={() => onRegenerate?.(message.id)}
               onBranch={() => onBranch?.(message.id)}
+              onEdit={() => onEdit?.(message.id)}
+              onDelete={() => onDelete?.(message.id)}
               modelLabel={modelLabel}
             />
           </div>

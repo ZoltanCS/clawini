@@ -59,6 +59,7 @@ export default function ChatInterface() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [branchToast, setBranchToast] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -263,21 +264,37 @@ export default function ChatInterface() {
     setShowTokenUsage(false);
     setRegeneratingId(null);
 
-    const { data: freshMessages } = await supabase
-      .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
+    let allMessages: { role: string; content: string; image_url?: string | null }[];
 
-    const userMsg: any = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
-    const allMessages = [...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
+    if (editingMessage) {
+      const { data: msgs } = await supabase
+        .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
+      const editIdx = msgs?.findIndex(m => m.id === editingMessage.id) ?? -1;
+      if (editIdx !== -1 && msgs) {
+        const toDelete = msgs.slice(editIdx).map(m => m.id);
+        await supabase.from('messages').delete().in('id', toDelete);
+      }
+      const messagesBefore = (msgs || []).slice(0, editIdx);
+      const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
+      allMessages = [...messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
+      await addMessage(chatId, 'user', content, imageUrls);
+      setEditingMessage(null);
+    } else {
+      const { data: freshMessages } = await supabase
+        .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
+      const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
+      allMessages = [...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
+
+      if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
+        generateChatTitle(chatId, content);
+        setHasGeneratedTitle(prev => new Set(prev).add(chatId));
+      }
+
+      await addMessage(chatId, 'user', content, imageUrls);
+    }
 
     const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
     setTokenCount(heuristicTokens);
-
-    if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
-      generateChatTitle(chatId, content);
-      setHasGeneratedTitle(prev => new Set(prev).add(chatId));
-    }
-
-    await addMessage(chatId, 'user', content, imageUrls);
 
     try {
       if (abort.signal.aborted) return;
@@ -326,7 +343,7 @@ export default function ChatInterface() {
       setIsLoading(false);
       setRegeneratingId(null);
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
@@ -336,6 +353,7 @@ export default function ChatInterface() {
   const handleNewChat = useCallback(async () => {
     if (!user) { setIsAuthModalOpen(true); return; }
     stopStreaming();
+    setEditingMessage(null);
     await createNewChat();
     setIsSidebarOpen(false);
     gcTriggeredRef.current = false;
@@ -345,6 +363,7 @@ export default function ChatInterface() {
     setCurrentChatId(chatId);
     setIsSidebarOpen(false);
     setError(null);
+    setEditingMessage(null);
     gcTriggeredRef.current = false;
     setRegeneratingId(null);
   }, [setCurrentChatId]);
@@ -452,6 +471,29 @@ export default function ChatInterface() {
     gcTriggeredRef.current = false;
     setBranchToast(`Új ág létrehozva ${toCopy.length} üzenettel`);
   }, [currentChatId, user, createNewChat, generateChatTitle, hasGeneratedTitle]);
+
+  const handleEditMessage = useCallback(async (messageId: string) => {
+    const msg = currentMessages.find(m => m.id === messageId);
+    if (msg && msg.role === 'user') {
+      setEditingMessage(msg);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  }, [currentMessages]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!currentChatId || !user) return;
+    const { data: msgs } = await supabase
+      .from('messages').select('id').eq('chat_id', currentChatId).order('created_at', { ascending: true });
+    if (!msgs) return;
+    const idx = msgs.findIndex(m => m.id === messageId);
+    if (idx === -1) return;
+    const toDelete = msgs.slice(idx).map(m => m.id);
+    await supabase.from('messages').delete().in('id', toDelete);
+  }, [currentChatId, user]);
 
   const handleGarbageCollect = useCallback(async () => {
     if (!currentChatId || !user || gcTriggeredRef.current) return;
@@ -673,6 +715,7 @@ export default function ChatInterface() {
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
             onRegenerate={handleRegenerate} onBranch={handleBranch}
+            onEdit={handleEditMessage} onDelete={handleDeleteMessage}
             modelLabel={modelLabel} regeneratingId={regeneratingId}
           />
         </div>
@@ -683,6 +726,15 @@ export default function ChatInterface() {
             isLoading={isLoading} onImageUpload={handleImageUpload}
             onStop={stopStreaming}
             placeholder={user ? 'Írj bármit...' : 'Bejelentkezés szükséges'}
+            editValue={editingMessage?.content}
+            editImageUrls={(() => {
+              if (!editingMessage?.image_url) return [];
+              try {
+                const p = JSON.parse(editingMessage.image_url);
+                return Array.isArray(p) ? p : [editingMessage.image_url];
+              } catch { return [editingMessage.image_url]; }
+            })()}
+            onCancelEdit={handleCancelEdit}
           />
         </div>
       </main>
