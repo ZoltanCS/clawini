@@ -214,15 +214,18 @@ export default function ChatInterface() {
     const decoder = new TextDecoder();
     let accumulated = '';
     let buffer = '';
+    let rafPending = false;
 
-    let lastRender = 0;
-    const renderInterval = 32;
-
-    const flush = () => {
-      if (accumulated !== partialContentRef.current) {
-        partialContentRef.current = accumulated;
-        setStreamingContent(accumulated);
-      }
+    const scheduleFlush = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (accumulated !== partialContentRef.current) {
+          partialContentRef.current = accumulated;
+          setStreamingContent(accumulated);
+        }
+      });
     };
 
     if (reader) {
@@ -241,35 +244,21 @@ export default function ChatInterface() {
               try {
                 const parsed = JSON.parse(t.slice(6));
                 const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) {
-                  accumulated += delta;
-                  const now = Date.now();
-                  if (now - lastRender >= renderInterval) {
-                    lastRender = now;
-                    flush();
-                  }
-                }
+                if (delta) { accumulated += delta; scheduleFlush(); }
               } catch {}
             } else if (t.startsWith('{')) {
               try {
                 const parsed = JSON.parse(t);
                 const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) {
-                  accumulated += delta;
-                  const now = Date.now();
-                  if (now - lastRender >= renderInterval) {
-                    lastRender = now;
-                    flush();
-                  }
-                }
+                if (delta) { accumulated += delta; scheduleFlush(); }
               } catch {}
             }
           }
         }
       } catch {}
     }
-    flush();
     partialContentRef.current = accumulated;
+    setStreamingContent(accumulated);
     return accumulated;
   }, []);
 

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 const SYSTEM_PROMPT_DEFAULT = `Te egy ember módon beszélgető AI vagy, nem egy hivatalos asszisztens. A neved Marci, 24 éves vagy (persona, nem valódi kor), és laza, közvetlen stílusban beszélsz, mintha egy okos, tájékozott barát lennél egy chaten.
@@ -180,9 +182,10 @@ export async function POST(req: NextRequest) {
 
     return new Response(nimRes.body, {
       headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (error: any) {
