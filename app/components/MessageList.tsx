@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Message } from '@/app/types';
 import MessageBubble from './MessageBubble';
 import { supabase } from '@/app/lib/supabase';
@@ -47,6 +47,14 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const prevChatId = useRef<string | null>(null);
   const prevMessageCount = useRef(0);
+  const isNearBottom = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const threshold = 150;
+    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
 
   useEffect(() => {
     if (!chatId) {
@@ -100,11 +108,12 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   }, [messages]);
 
   useEffect(() => {
+    if (!isNearBottom.current) return;
     const el = bottomRef.current;
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages, streamingContent, isLoading]);
+  }, [messages]);
 
   if (!chatId) return null;
 
@@ -119,7 +128,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   if (messages.length === 0) return null;
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
           <div key={message.id} className="animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>

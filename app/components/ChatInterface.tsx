@@ -339,9 +339,11 @@ export default function ChatInterface() {
       await addMessage(chatId, 'assistant', `Hiba: ${msg}`);
       setError({ message: msg, timestamp: Date.now(), retryFn: () => { handleSendMessage(content, imageUrls); } });
     } finally {
-      if (abortRef.current === abort) { abortRef.current = null; }
-      setIsLoading(false);
-      setRegeneratingId(null);
+      if (abortRef.current === abort) {
+        abortRef.current = null;
+        setIsLoading(false);
+        setRegeneratingId(null);
+      }
     }
   }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage]);
 
@@ -352,15 +354,16 @@ export default function ChatInterface() {
 
   const handleNewChat = useCallback(async () => {
     if (!user) { setIsAuthModalOpen(true); return; }
-    stopStreaming();
+    setStreamingContent('');
     setEditingMessage(null);
     await createNewChat();
     setIsSidebarOpen(false);
     gcTriggeredRef.current = false;
-  }, [user, createNewChat, stopStreaming]);
+  }, [user, createNewChat]);
 
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
+    setStreamingContent('');
     setIsSidebarOpen(false);
     setError(null);
     setEditingMessage(null);
@@ -432,9 +435,11 @@ export default function ChatInterface() {
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       setError({ message: msg, timestamp: Date.now(), retryFn: () => handleRegenerate(messageId) });
     } finally {
-      if (abortRef.current === abort) abortRef.current = null;
-      setIsLoading(false);
-      setRegeneratingId(null);
+      if (abortRef.current === abort) {
+        abortRef.current = null;
+        setIsLoading(false);
+        setRegeneratingId(null);
+      }
     }
   }, [currentChatId, user, addMessage, selectedModelId, streamResponse]);
 

@@ -126,7 +126,7 @@ export default function ChatInput({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isLoading || isUploading) return;
+    if ((!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isUploading) return;
 
     let allImageUrls: string[] = [...existingEditUrls];
 
@@ -202,7 +202,7 @@ export default function ChatInput({
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
-    if (isLoading || isUploading) return;
+    if (isUploading) return;
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
     await processFiles(files);
@@ -312,7 +312,7 @@ export default function ChatInput({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || isUploading}
+            disabled={isUploading}
             className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-50 transition-all duration-150 hover-scale touch-active"
             title="Kép feltöltése"
             style={{ color: 'var(--fg-muted)' }}
@@ -339,7 +339,7 @@ export default function ChatInput({
                 onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={1}
-              disabled={isLoading || isUploading}
+              disabled={isUploading}
               className="w-full bg-transparent border-none outline-none resize-none py-2.5 px-1 max-h-[120px] min-h-[44px] text-[16px] leading-relaxed transition-opacity duration-200 disabled:opacity-50"
               style={{ color: 'var(--fg)' }}
             />
@@ -359,7 +359,7 @@ export default function ChatInput({
             </button>
           ) : null}
           <SendButton
-            disabled={(!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isLoading || isUploading}
+            disabled={(!input.trim() && selectedImages.length === 0 && existingEditUrls.length === 0) || isUploading}
             isLoading={isLoading || isUploading}
             onStop={onStop}
           />
