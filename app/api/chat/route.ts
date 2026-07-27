@@ -77,7 +77,12 @@ export async function POST(req: NextRequest) {
     if (!nimRes.ok) {
       let err = '';
       try { err = await nimRes.text(); } catch {}
-      return NextResponse.json({ error: `API error ${nimRes.status}`, details: err }, { status: nimRes.status });
+      const status = nimRes.status;
+      let message = `API error ${status}`;
+      if (status === 404) message = `Model '${modelId}' not found on NVIDIA NIM`;
+      else if (status === 401) message = 'API key rejected - check NVIDIA_NIM_API_KEY';
+      else if (status === 429) message = 'Rate limited - try again later';
+      return NextResponse.json({ error: message, details: err }, { status });
     }
 
     if (!nimRes.body) {

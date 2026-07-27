@@ -5,11 +5,15 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
+  let fromAPI = false;
   if (apiKey) {
-    const models = await fetchNimModels(apiKey);
-    if (models && models.length > 0) {
-      return NextResponse.json({ models });
-    }
+    try {
+      const models = await fetchNimModels(apiKey);
+      if (models && models.length > 0) {
+        fromAPI = true;
+        return NextResponse.json({ models, fromAPI });
+      }
+    } catch {}
   }
-  return NextResponse.json({ models: NIM_FALLBACK });
+  return NextResponse.json({ models: NIM_FALLBACK, fromAPI });
 }
