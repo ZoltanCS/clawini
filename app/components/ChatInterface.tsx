@@ -181,25 +181,46 @@ export default function ChatInterface() {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let accumulated = '';
+    let buffer = '';
     setStreamingContent('');
 
     if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) { accumulated += delta; setStreamingContent(accumulated); }
-            } catch {}
+      try {
+        while (true) {
+          const result = await Promise.race([
+            reader.read(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stream timeout')), 60000))
+          ]);
+          const { done, value } = result;
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            if (trimmed === 'data: [DONE]') continue;
+            if (trimmed.startsWith('data: ')) {
+              const data = trimmed.slice(6);
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) { accumulated += delta; setStreamingContent(accumulated); }
+              } catch {}
+            } else if (trimmed.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) { accumulated += delta; setStreamingContent(accumulated); }
+              } catch {}
+            }
           }
         }
+      } catch (e) {
+        if (accumulated) {
+          return accumulated;
+        }
+        throw e;
       }
     }
     return accumulated;

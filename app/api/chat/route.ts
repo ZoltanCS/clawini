@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NIM_FALLBACK, getModelById } from '@/app/lib/nim-models';
+import { NIM_FALLBACK } from '@/app/lib/nim-models';
 
 const SYSTEM_PROMPT_DEFAULT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
 
@@ -22,18 +22,11 @@ function buildRichSystemPrompt(basePrompt: string): string {
   return `${vars}\n\n${basePrompt}`;
 }
 
-function findModelContextWindow(modelId: string): number {
-  const model = NIM_FALLBACK.find(m => m.id === modelId);
-  return model?.contextWindow || 131072;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { messages, model, systemPrompt } = await req.json();
-
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
     const modelId = model || 'meta/llama-3.1-70b-instruct';
-    const contextWindow = findModelContextWindow(modelId);
 
     const formattedMessages = messages.map((msg: any) => {
       if (msg.image_url) {
@@ -44,7 +37,6 @@ export async function POST(req: NextRequest) {
         } catch {
           imageUrls = [msg.image_url];
         }
-
         return {
           role: msg.role,
           content: [
@@ -55,81 +47,55 @@ export async function POST(req: NextRequest) {
       }
       return { role: msg.role, content: msg.content };
     });
-
     formattedMessages.unshift({ role: 'system', content: systemContent });
 
     const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'NVIDIA NIM API key not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    const isVisionModel = getModelById(NIM_FALLBACK, modelId)?.supportsVision;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    const nimRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'text/event-stream',
       },
       body: JSON.stringify({
         model: modelId,
         messages: formattedMessages,
         stream: true,
-        max_tokens: Math.min(4096, Math.floor(contextWindow * 0.8)),
+        max_tokens: 4096,
         temperature: 0.7,
-        top_p: 0.9,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json({
-        error: `NIM API error: ${response.status}`,
-        details: errorText
-      }, { status: response.status });
+    if (!nimRes.ok) {
+      let err = '';
+      try { err = await nimRes.text(); } catch {}
+      return NextResponse.json({ error: `API error ${nimRes.status}`, details: err }, { status: nimRes.status });
     }
 
-    const encoder = new TextEncoder();
-    const reader = response.body?.getReader();
-    if (!reader) {
-      return NextResponse.json({ error: 'No response body' }, { status: 500 });
+    if (!nimRes.body) {
+      return NextResponse.json({ error: 'Empty response body' }, { status: 502 });
     }
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-              controller.close();
-              break;
-            }
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-              if (line.trim()) controller.enqueue(encoder.encode(line + '\n'));
-            }
-          }
-        } catch (e) {
-          controller.error(e);
-        }
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(nimRes.body, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      return NextResponse.json({ error: 'API request timed out' }, { status: 504 });
+    }
     console.error('Chat API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
