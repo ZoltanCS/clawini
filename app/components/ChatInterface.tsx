@@ -478,12 +478,12 @@ export default function ChatInterface() {
   }, [currentChatId, user, createNewChat, generateChatTitle, hasGeneratedTitle]);
 
   const handleEditMessage = useCallback(async (messageId: string) => {
-    const msg = currentMessages.find(m => m.id === messageId);
-    if (msg && msg.role === 'user') {
-      setEditingMessage(msg);
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    const { data } = await supabase
+      .from('messages').select('*').eq('id', messageId).single();
+    if (data && data.role === 'user') {
+      setEditingMessage(data as Message);
     }
-  }, [currentMessages]);
+  }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
