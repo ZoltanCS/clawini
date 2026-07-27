@@ -18,19 +18,19 @@ interface MessageListProps {
 function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   return (
     <div className="flex justify-start mb-4 animate-messageSlideIn">
-      <div className="bg-transparent px-4 py-3">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center animate-float">
             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
           <span className="text-sm font-medium text-gray-600">{modelLabel}</span>
         </div>
-        <div className="flex items-center gap-1 ml-7">
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="flex items-center gap-1.5 ml-7">
+          <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
+          <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
+          <div className="w-2 h-2 bg-blue-400 rounded-full typing-dot" />
         </div>
       </div>
     </div>
@@ -43,6 +43,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const prevChatId = useRef<string | null>(null);
+  const prevMessageCount = useRef(0);
 
   useEffect(() => {
     if (!chatId) {
@@ -91,21 +92,23 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     };
   }, [chatId, onMessagesLoaded]);
 
-  const isNewChat = chatId !== prevChatId.current;
+  useEffect(() => {
+    prevMessageCount.current = messages.length;
+  }, [messages]);
 
   useEffect(() => {
     const el = bottomRef.current;
     if (el) {
-      el.scrollIntoView({ behavior: isNewChat ? 'auto' : 'smooth' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages, isLoading, streamingContent, isNewChat]);
+  }, [messages, streamingContent, isLoading]);
 
   if (!chatId) return null;
 
   if (isLoadingMessages) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        <div className="w-8 h-8 rounded-full border-2 border-blue-200 border-t-blue-500 spinner" />
       </div>
     );
   }
@@ -116,7 +119,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
       <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
-          <div key={message.id} className={index === messages.length - 1 ? 'animate-messageSlideIn' : ''}>
+          <div key={message.id} className="animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>
             <MessageBubble 
               message={message}
               onRegenerate={() => onRegenerate?.(message.id)}
@@ -126,10 +129,10 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
           </div>
         ))}
         {streamingContent && (
-          <div className="flex justify-start mb-4 animate-messageSlideIn">
+          <div className="flex justify-start mb-4">
             <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl bg-transparent">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center animate-float">
                   <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>
@@ -141,7 +144,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
           </div>
         )}
         {isLoading && !streamingContent && <TypingIndicator modelLabel={modelLabel} />}
-        <div ref={bottomRef} className="h-1" />
+        <div ref={bottomRef} className="h-2" />
       </div>
     </div>
   );

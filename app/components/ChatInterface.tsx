@@ -485,13 +485,13 @@ export default function ChatInterface() {
       <main className="flex-1 flex flex-col h-full relative">
         <header className="flex items-center justify-between px-2 py-2.5 border-b border-gray-100 bg-white/95 backdrop-blur-sm z-10">
           <div className="flex items-center gap-1 min-w-0">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-full active:bg-gray-100">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-all duration-150">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
               </svg>
             </button>
 
-            <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg active:bg-gray-100 max-w-[180px]">
+            <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-150 max-w-[180px]">
               <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
@@ -512,13 +512,13 @@ export default function ChatInterface() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={() => setShowTokenUsage(p => !p)} className="p-2 rounded-full active:bg-gray-100" title="Token használat">
+            <button onClick={() => setShowTokenUsage(p => !p)} className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-all duration-150" title="Token használat">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
               </svg>
             </button>
 
-            <button onClick={handleNewChat} className="p-2 rounded-full active:bg-gray-100" title="Új beszélgetés">
+            <button onClick={handleNewChat} className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-all duration-150" title="Új beszélgetés">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
@@ -526,7 +526,7 @@ export default function ChatInterface() {
 
             {currentChatId && (
               <div className="relative">
-                <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2 rounded-full active:bg-gray-100" title="Export">
+                <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-all duration-150" title="Export">
                   <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                   </svg>
@@ -534,14 +534,14 @@ export default function ChatInterface() {
                 {exportMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[170px]">
+                    <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[170px] animate-scaleIn">
                       {[
                         { label: 'Markdown (.md)', format: 'markdown' as const },
                         { label: 'JSON (.json)', format: 'json' as const },
                         { label: 'Vágólapra másolás', format: 'clipboard' as const },
                       ].map(item => (
                         <button key={item.format} onClick={() => handleExport(item.format)}
-                          className="w-full text-left px-4 py-3 text-sm text-gray-700 active:bg-gray-50">
+                          className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-100">
                           {item.label}
                         </button>
                       ))}
@@ -552,7 +552,7 @@ export default function ChatInterface() {
             )}
 
             {!user && (
-              <button onClick={() => setIsAuthModalOpen(true)} className="px-3.5 py-2 bg-blue-500 active:bg-blue-600 text-white text-sm font-medium rounded-full">
+              <button onClick={() => setIsAuthModalOpen(true)} className="px-3.5 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-medium rounded-full transition-all duration-150 hover:shadow-lg hover:shadow-blue-200">
                 Bejelentkezés
               </button>
             )}
@@ -603,7 +603,7 @@ export default function ChatInterface() {
       {/* Model Sheet - Mobile Bottom Sheet */}
       {isModelSheetOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setIsModelSheetOpen(false)} />
+          <div className="fixed inset-0 bg-black/40 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} />
           <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl sm:max-h-[80vh] sm:mx-4 rounded-t-2xl max-h-[70vh] flex flex-col animate-slideUp">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800">Modell választás</h2>

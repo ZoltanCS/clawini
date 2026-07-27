@@ -51,29 +51,29 @@ export default function WelcomeScreen({ onSuggestionClick, currentChat }: Welcom
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 overflow-y-auto">
-      <div className="mb-6">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-200">
+      <div className="mb-6 animate-slideUpFade">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-200 animate-float">
           <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
         </div>
       </div>
 
-      <h1 className="text-2xl font-semibold text-center text-gray-800 mb-1.5">
+      <h1 className="text-2xl font-semibold text-center text-gray-800 mb-1.5 animate-slideUpFade" style={{ animationDelay: '0.1s' }}>
         Miben segíthetek ma?
       </h1>
-      <p className="text-gray-500 text-center mb-8 text-sm">
+      <p className="text-gray-500 text-center mb-8 text-sm animate-slideUpFade" style={{ animationDelay: '0.15s' }}>
         Válassz egy modellt a fejlécből, és indíts beszélgetést
       </p>
 
-      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-md stagger-children">
         {suggestions.map((suggestion, index) => (
           <button
             key={index}
             onClick={() => onSuggestionClick(suggestion.description)}
-            className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-xl active:border-blue-400 active:shadow-md transition-all text-center active:scale-[0.98]"
+            className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-xl active:border-blue-400 active:shadow-md transition-all duration-150 text-center hover:shadow-lg hover:border-gray-300 hover-scale"
           >
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 transition-transform duration-200 group-hover:scale-110">
               {suggestion.icon}
             </div>
             <div>
