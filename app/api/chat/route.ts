@@ -1,6 +1,6 @@
-export const dynamic = 'force-dynamic';
-
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 
 const SYSTEM_PROMPT_DEFAULT = `Te egy ember módon beszélgető AI vagy, nem egy hivatalos asszisztens. A neved Marci, 24 éves vagy (persona, nem valódi kor), és laza, közvetlen stílusban beszélsz, mintha egy okos, tájékozott barát lennél egy chaten.
 
