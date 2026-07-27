@@ -60,6 +60,7 @@ export default function ChatInterface() {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [branchToast, setBranchToast] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [webSearchMode, setWebSearchMode] = useState<'off' | 'auto' | 'on'>('off');
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -89,6 +90,8 @@ export default function ChatInterface() {
     setShowTokenUsage(localStorage.getItem('showTokenUsage') === 'true');
     const savedExport = localStorage.getItem('exportFormat') as 'markdown' | 'json' | 'clipboard' | null;
     if (savedExport) setExportFormat(savedExport);
+    const savedWebSearch = localStorage.getItem('webSearchMode') as 'off' | 'auto' | 'on' | null;
+    if (savedWebSearch) setWebSearchMode(savedWebSearch);
   }, []);
 
   // Load models
@@ -145,6 +148,14 @@ export default function ChatInterface() {
   }, [branchToast]);
 
   const dismissError = useCallback(() => setError(null), []);
+
+  const handleWebSearchToggle = useCallback(() => {
+    setWebSearchMode(prev => {
+      const next = prev === 'off' ? 'auto' : prev === 'auto' ? 'on' : 'off';
+      localStorage.setItem('webSearchMode', next);
+      return next;
+    });
+  }, []);
 
   const handleAuthCode = useCallback(async () => {
     const url = new URL(window.location.href);
@@ -300,7 +311,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt() }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode }),
         signal: abort.signal,
       });
 
@@ -345,7 +356,7 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!currentChatId) return null;
@@ -740,6 +751,8 @@ export default function ChatInterface() {
               } catch { return [editingMessage.image_url]; }
             })()}
             onCancelEdit={handleCancelEdit}
+            webSearchMode={webSearchMode}
+            onWebSearchToggle={handleWebSearchToggle}
           />
         </div>
       </main>

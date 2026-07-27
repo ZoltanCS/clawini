@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NIM_FALLBACK } from '@/app/lib/nim-models';
 
 const SYSTEM_PROMPT_DEFAULT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
 
@@ -22,11 +21,79 @@ function buildRichSystemPrompt(basePrompt: string): string {
   return `${vars}\n\n${basePrompt}`;
 }
 
+interface TavilyResult {
+  title: string;
+  url: string;
+  content: string;
+}
+
+async function tavilySearch(query: string): Promise<TavilyResult[] | null> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        include_answer: false,
+        max_results: 5,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    return data.results || null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldAutoSearch(query: string): boolean {
+  const now = new Date();
+  const q = query.toLowerCase();
+  const currentYear = now.getFullYear().toString();
+
+  const dateTriggers = ['today', 'now', 'latest', 'recent', 'current', 'news', 'weather',
+    'forecast', 'price', 'stock', 'score', 'election', 'covid', 'update',
+    currentYear, '2025', '2026', '2027'];
+  if (dateTriggers.some(t => q.includes(t))) return true;
+
+  const questionTriggers = ['who is', 'what is', 'when did', 'where is', 'how to',
+    'mi az', 'mi a', 'ki az', 'mikor', 'hol van', 'hogyan',
+    'legújabb', 'aktuális', 'mai'];
+  if (questionTriggers.some(t => q.startsWith(t) || q.includes(t))) return true;
+
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, systemPrompt } = await req.json();
+    const { messages, model, systemPrompt, webSearch } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
     const modelId = model || 'meta/llama-3.1-70b-instruct';
+
+    // Tavily web search
+    let webContext = '';
+    if (webSearch && webSearch !== 'off') {
+      const lastUserMsg = messages.filter((m: any) => m.role === 'user').pop();
+      if (lastUserMsg && lastUserMsg.content) {
+        const shouldSearch = webSearch === 'on' || shouldAutoSearch(lastUserMsg.content);
+        if (shouldSearch) {
+          const results = await tavilySearch(lastUserMsg.content);
+          if (results && results.length > 0) {
+            webContext = '\n\nWeb keresési eredmények:\n' + results.map((r, i) =>
+              `[${i + 1}] ${r.title}\n${r.content}\nForrás: ${r.url}`
+            ).join('\n\n');
+          }
+        }
+      }
+    }
 
     const formattedMessages = messages.map((msg: any) => {
       if (msg.image_url) {
@@ -47,7 +114,7 @@ export async function POST(req: NextRequest) {
       }
       return { role: msg.role, content: msg.content };
     });
-    formattedMessages.unshift({ role: 'system', content: systemContent });
+    formattedMessages.unshift({ role: 'system', content: systemContent + webContext });
 
     const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
