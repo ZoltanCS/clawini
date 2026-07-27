@@ -215,6 +215,16 @@ export default function ChatInterface() {
     let accumulated = '';
     let buffer = '';
 
+    let lastRender = 0;
+    const renderInterval = 32;
+
+    const flush = () => {
+      if (accumulated !== partialContentRef.current) {
+        partialContentRef.current = accumulated;
+        setStreamingContent(accumulated);
+      }
+    };
+
     if (reader) {
       try {
         while (true) {
@@ -231,19 +241,34 @@ export default function ChatInterface() {
               try {
                 const parsed = JSON.parse(t.slice(6));
                 const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) { accumulated += delta; setStreamingContent(accumulated); }
+                if (delta) {
+                  accumulated += delta;
+                  const now = Date.now();
+                  if (now - lastRender >= renderInterval) {
+                    lastRender = now;
+                    flush();
+                  }
+                }
               } catch {}
             } else if (t.startsWith('{')) {
               try {
                 const parsed = JSON.parse(t);
                 const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) { accumulated += delta; setStreamingContent(accumulated); }
+                if (delta) {
+                  accumulated += delta;
+                  const now = Date.now();
+                  if (now - lastRender >= renderInterval) {
+                    lastRender = now;
+                    flush();
+                  }
+                }
               } catch {}
             }
           }
         }
       } catch {}
     }
+    flush();
     partialContentRef.current = accumulated;
     return accumulated;
   }, []);
@@ -253,12 +278,14 @@ export default function ChatInterface() {
       abortRef.current.abort();
       abortRef.current = null;
     }
+    setStreamingContent('');
     setIsLoading(false);
     setRegeneratingId(null);
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) { setIsAuthModalOpen(true); return; }
+    setStreamingContent('');
     if (abortRef.current) abortRef.current.abort();
     const abort = new AbortController();
     abortRef.current = abort;
@@ -308,14 +335,14 @@ export default function ChatInterface() {
     setTokenCount(heuristicTokens);
 
     try {
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted) { setStreamingContent(''); return; }
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode }),
         signal: abort.signal,
       });
 
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted) { setStreamingContent(''); return; }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
@@ -338,6 +365,7 @@ export default function ChatInterface() {
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error: any) {
+      setStreamingContent('');
       if (error?.name === 'AbortError') {
         const partial = partialContentRef.current;
         if (partial) {
@@ -404,8 +432,7 @@ export default function ChatInterface() {
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
     if (abortRef.current) abortRef.current.abort();
-    const abort = new AbortController();
-    abortRef.current = abort;
+    setStreamingContent('');
 
     const { data: messages } = await supabase
       .from('messages').select('*').eq('chat_id', currentChatId).order('created_at', { ascending: true });
@@ -413,7 +440,11 @@ export default function ChatInterface() {
     const msgIdx = messages.findIndex(m => m.id === messageId);
     if (msgIdx === -1 || messages[msgIdx].role !== 'assistant') return;
 
-    setRegeneratingId(messageId);
+    // Delete old message immediately so it disappears from the list
+    await supabase.from('messages').delete().eq('id', messageId).eq('chat_id', currentChatId);
+
+    const abort = new AbortController();
+    abortRef.current = abort;
     setIsLoading(true);
     setError(null);
 
@@ -424,7 +455,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt() }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode }),
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -438,10 +469,10 @@ export default function ChatInterface() {
 
       if (abort.signal.aborted) return;
 
-      await supabase.from('messages').delete().eq('id', messageId).eq('chat_id', currentChatId);
       setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: accumulatedContent || '' }], selectedModelId));
       await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error: any) {
+      setStreamingContent('');
       if (error?.name === 'AbortError') return;
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       setError({ message: msg, timestamp: Date.now(), retryFn: () => handleRegenerate(messageId) });
@@ -452,7 +483,7 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [currentChatId, user, addMessage, selectedModelId, streamResponse]);
+  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode]);
 
   const closeBranchToast = useCallback(() => setBranchToast(null), []);
 
