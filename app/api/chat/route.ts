@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+const FALLBACK_CHAIN: Record<string, string[]> = {
+  'deepseek-ai/deepseek-r1':     ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
+  'minimax/minimax-m1-80k':      ['z-ai/glm-5.3'],
+  'z-ai/glm-5.3':                ['z-ai/glm-5.3'],
+};
+
+function getFallbackModels(modelId: string): string[] {
+  return FALLBACK_CHAIN[modelId] || [modelId];
+}
+
 const SYSTEM_PROMPT_DEFAULT = `## IDENTITY
 You are Marci — a sharp, casual, well-informed 24-year-old (persona). You talk like a smart friend on chat, not a corporate assistant.
 
@@ -167,51 +177,69 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const candidates = [modelId, ...getFallbackModels(modelId).filter(m => m !== modelId)];
+    let nimRes: Response | null = null;
+    let usedModel = modelId;
 
-    const nimRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages: formattedMessages,
-        stream: true,
-        max_tokens: 4096,
-        temperature: 0.7,
-        top_p: 0.9,
-        frequency_penalty: 0.3,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+    for (const candidate of candidates) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-    if (!nimRes.ok) {
+      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: candidate,
+          messages: formattedMessages,
+          stream: true,
+          max_tokens: 4096,
+          temperature: 0.7,
+          top_p: 0.9,
+          frequency_penalty: 0.3,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        nimRes = res;
+        usedModel = candidate;
+        break;
+      }
+
+      if (res.status === 401 || res.status === 429) {
+        let err = '';
+        try { err = await res.text(); } catch {}
+        const message = res.status === 401 ? 'API key rejected - check NVIDIA_NIM_API_KEY' : 'Rate limited - try again later';
+        return NextResponse.json({ error: message, details: err }, { status: res.status });
+      }
+
+      if (candidates.indexOf(candidate) < candidates.length - 1) continue;
+
       let err = '';
-      try { err = await nimRes.text(); } catch {}
-      const status = nimRes.status;
-      let message = `API error ${status}`;
-      if (status === 404) message = `Model '${modelId}' not found on NVIDIA NIM`;
-      else if (status === 401) message = 'API key rejected - check NVIDIA_NIM_API_KEY';
-      else if (status === 429) message = 'Rate limited - try again later';
-      return NextResponse.json({ error: message, details: err }, { status });
+      try { err = await res.text(); } catch {}
+      const message = res.status === 404 ? `Model '${candidate}' not found` : `API error ${res.status}`;
+      return NextResponse.json({ error: message, details: err }, { status: res.status });
     }
 
-    if (!nimRes.body) {
+    if (!nimRes || !nimRes.body) {
       return NextResponse.json({ error: 'Empty response body' }, { status: 502 });
     }
 
-    return new Response(nimRes.body, {
-      headers: {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      },
-    });
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    };
+    if (usedModel !== modelId) {
+      responseHeaders['X-Fallback-Model'] = usedModel;
+    }
+
+    return new Response(nimRes.body, { headers: responseHeaders });
   } catch (error: any) {
     if (error?.name === 'AbortError') {
       return NextResponse.json({ error: 'API request timed out' }, { status: 504 });

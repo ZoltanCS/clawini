@@ -780,33 +780,26 @@ export default function ChatInterface() {
             </div>
 
             <div className="px-4 py-4 space-y-3">
-              {models.map(model => {
-                const selected = model.id === selectedModelId;
-                const tierColors: Record<string, { bg: string; icon: string; label: string }> = {
-                  fast:   { bg: 'linear-gradient(135deg, #34c759, #30d158)', icon: '\u26A1', label: 'Gyors' },
-                  normal: { bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', icon: '\u2699\uFE0F',  label: 'Normál' },
-                  smart:  { bg: 'linear-gradient(135deg, #af52de, #5856d6)', icon: '\uD83E\uDDE0', label: 'Okos' },
-                };
-                const tier = model.tier || 'normal';
-                const tc = tierColors[tier];
+              {[
+                { tier: 'fast',   icon: '\u26A1', label: 'Gyors',   bg: 'linear-gradient(135deg, #34c759, #30d158)', shadow: 'rgba(52,199,89,0.3)',   id: 'z-ai/glm-5.3' },
+                { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'minimax/minimax-m1-80k' },
+                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'deepseek-ai/deepseek-r1' },
+              ].map(opt => {
+                const selected = opt.id === selectedModelId;
                 return (
-                  <button key={model.id} onClick={() => handleModelChange(model.id)}
+                  <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
                     className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-200 glass-border-gradient"
                     style={{
                       background: selected ? 'var(--accent-glass)' : 'var(--input-bg)',
                       border: selected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
                     }}>
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: tc.bg, boxShadow: `0 4px 12px ${tc.bg.includes('34c759') ? 'rgba(52,199,89,0.3)' : tc.bg.includes('007aff') ? 'rgba(0,122,255,0.3)' : 'rgba(88,86,214,0.3)'}` }}>
-                      {tc.icon}
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: opt.bg, boxShadow: `0 4px 12px ${opt.shadow}` }}>
+                      {opt.icon}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)', color: 'var(--fg-secondary)' }}>{tc.label}</span>
+                    <div className="flex-1">
+                      <div className="text-[15px] font-semibold" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
+                        {opt.label}
                       </div>
-                      <div className="text-[15px] font-semibold mt-0.5" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
-                        {model.label}
-                      </div>
-                      <div className="text-xs" style={{ color: 'var(--fg-muted)' }}>{model.description}</div>
                     </div>
                     {selected && (
                       <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">

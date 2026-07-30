@@ -61,6 +61,18 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
+export const TIER_FALLBACK: Record<string, string> = {
+  smart: 'minimax/minimax-m1-80k',
+  normal: 'z-ai/glm-5.3',
+  fast: 'z-ai/glm-5.3',
+};
+
+export const TIER_ORDER: Record<string, string[]> = {
+  smart:  ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
+  normal: ['z-ai/glm-5.3'],
+  fast:   ['z-ai/glm-5.3'],
+};
+
 export const DEFAULT_NIM_MODEL_ID = 'minimax/minimax-m1-80k';
 export const DEFAULT_GC_MODEL_ID = 'z-ai/glm-5.3';
 
