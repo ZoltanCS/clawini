@@ -69,6 +69,11 @@ export default function ChatInterface() {
   const thinkingContentRef = useRef<string>('');
   const pendingChatIdRef = useRef<string | null>(null);
 
+  const wrapWithThinking = (content: string, thinkingText: string) => {
+    if (!thinkingText) return content;
+    return `「thinking」\n${thinkingText.trim()}\n「/thinking」\n\n${content}`;
+  };
+
   // Theme
   useEffect(() => {
     const saved = localStorage.getItem(THEME_KEY) as 'light' | 'dark' | 'system' | null;
@@ -377,7 +382,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) {
         const partial = partialContentRef.current;
         if (partial) {
-          await addMessage(chatId, 'assistant', partial);
+          await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
         }
         return;
@@ -385,13 +390,13 @@ export default function ChatInterface() {
 
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
-      await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
+      await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
     } catch (error: any) {
       setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') {
         const partial = partialContentRef.current;
         if (partial) {
-          await addMessage(chatId, 'assistant', partial);
+          await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
         }
         return;
@@ -492,7 +497,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
 
       setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: accumulatedContent || '' }], selectedModelId));
-      await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
+      await addMessage(currentChatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
     } catch (error: any) {
       setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') return;

@@ -192,8 +192,13 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [fullHtmlPreview, setFullHtmlPreview] = useState<string | null>(null);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
 
-  const segments = useMemo(() => parseContent(message.content || ''), [message.content]);
+  const thinkingMatch = !isUser ? message.content?.match(/^「thinking」\n([\s\S]*?)\n「\/thinking」\n\n([\s\S]*)$/) : null;
+  const thinkingText = thinkingMatch?.[1]?.trim() || '';
+  const cleanContent = thinkingMatch?.[2] ?? message.content;
+
+  const segments = useMemo(() => parseContent(cleanContent || ''), [cleanContent]);
   const hasHtml = useMemo(() => segments.some(s => s.type === 'code' && s.language === 'html'), [segments]);
 
   const imageUrls: string[] = (() => {
@@ -207,7 +212,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
   })();
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
+    await navigator.clipboard.writeText(cleanContent || message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -245,6 +250,29 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
             </div>
           )}
 
+          {thinkingText && (
+            <div className="mb-3 rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+              <button
+                onClick={() => setThinkingOpen(!thinkingOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors"
+                style={{ background: 'var(--surface-hover)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className={`w-4 h-4 transition-transform duration-200 ${thinkingOpen ? 'rotate-90' : ''}`} style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                  <span className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Gondolkodás</span>
+                </div>
+                <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>{thinkingOpen ? 'Elrejtés' : 'Megnyitás'}</span>
+              </button>
+              {thinkingOpen && (
+                <div className="px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)', background: 'var(--input-bg)' }}>
+                  {thinkingText}
+                </div>
+              )}
+            </div>
+          )}
+
           {imageUrls.length > 0 && (
             <div className={`mb-3 ${imageUrls.length > 1 ? 'grid grid-cols-2 gap-2' : ''}`}>
               {imageUrls.map((url, i) => (
@@ -260,7 +288,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
             </div>
           )}
 
-          {message.content && (
+          {cleanContent && (
             <div>
               {segments.map((segment, i) =>
                 segment.type === 'code' ? (
