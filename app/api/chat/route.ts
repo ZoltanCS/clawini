@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'deepseek-ai/deepseek-r1':     ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
-  'minimax/minimax-m1-80k':      ['z-ai/glm-5.3'],
-  'z-ai/glm-5.3':                ['z-ai/glm-5.3'],
-  'moonshotai/kimi-k2.6':        ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
+  'deepseek-ai/deepseek-v4-pro':  ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
+  'minimaxai/minimax-m3':         ['z-ai/glm-5.2'],
+  'z-ai/glm-5.2':                 ['z-ai/glm-5.2'],
+  'moonshotai/kimi-k2.6':         ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
 };
 
 function getFallbackModels(modelId: string): string[] {
@@ -131,9 +131,9 @@ function shouldAutoSearch(query: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, systemPrompt, webSearch } = await req.json();
+    const { messages, model, systemPrompt, webSearch, thinking } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
-    const modelId = model || 'minimax/minimax-m1-80k';
+    const modelId = model || 'minimaxai/minimax-m3';
 
     // Tavily web search
     let webContext = '';
@@ -186,21 +186,23 @@ export async function POST(req: NextRequest) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
+      const body: Record<string, any> = {
+        model: candidate,
+        messages: formattedMessages,
+        stream: true,
+        max_tokens: 4096,
+        temperature: 0.7,
+        top_p: 0.9,
+        frequency_penalty: 0.3,
+      };
+      if (thinking) body.chat_template_kwargs = { thinking: true };
       const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model: candidate,
-          messages: formattedMessages,
-          stream: true,
-          max_tokens: 4096,
-          temperature: 0.7,
-          top_p: 0.9,
-          frequency_penalty: 0.3,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

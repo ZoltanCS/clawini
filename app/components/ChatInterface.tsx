@@ -61,6 +61,7 @@ export default function ChatInterface() {
   const [branchToast, setBranchToast] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [webSearchMode, setWebSearchMode] = useState<'off' | 'auto' | 'on'>('off');
+  const [thinking, setThinking] = useState(false);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -92,17 +93,41 @@ export default function ChatInterface() {
     if (savedExport) setExportFormat(savedExport);
     const savedWebSearch = localStorage.getItem('webSearchMode') as 'off' | 'auto' | 'on' | null;
     if (savedWebSearch) setWebSearchMode(savedWebSearch);
+    setThinking(localStorage.getItem('thinking') === 'true');
   }, []);
 
   // Load models
   useEffect(() => {
     const cached = localStorage.getItem(MODELS_CACHE_KEY);
     const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
-    if (savedModel) setSelectedModelId(savedModel);
 
+    // Migrate old model IDs
+    const modelIdMigration: Record<string, string> = {
+      'z-ai/glm-5.3': 'z-ai/glm-5.2',
+      'minimax/minimax-m1-80k': 'minimaxai/minimax-m3',
+      'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-pro',
+    };
+    const migratedModel = savedModel ? (modelIdMigration[savedModel] || savedModel) : null;
+    if (migratedModel) {
+      setSelectedModelId(migratedModel);
+      localStorage.setItem(SELECTED_MODEL_KEY, migratedModel);
+    }
+
+    // Clear stale cache
     if (cached) {
       try {
-        const { models: cachedModels, timestamp } = JSON.parse(cached);
+        const { models: cachedModels } = JSON.parse(cached);
+        const hasOldIds = cachedModels.some((m: any) => modelIdMigration[m.id]);
+        if (hasOldIds) {
+          localStorage.removeItem(MODELS_CACHE_KEY);
+        }
+      } catch {}
+    }
+
+    const cached2 = localStorage.getItem(MODELS_CACHE_KEY);
+    if (cached2) {
+      try {
+        const { models: cachedModels, timestamp } = JSON.parse(cached2);
         if (Date.now() - timestamp < MODELS_CACHE_AGE) { setModels(cachedModels); setIsModelsLoading(false); return; }
       } catch {}
     }
@@ -309,13 +334,13 @@ export default function ChatInterface() {
     }
 
     const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
-    setTokenCount(heuristicTokens);
+      setTokenCount(heuristicTokens);
 
     try {
       if (abort.signal.aborted) { setStreamingContent(''); return; }
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking }),
         signal: abort.signal,
       });
 
@@ -432,7 +457,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking }),
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -781,10 +806,10 @@ export default function ChatInterface() {
 
             <div className="px-4 py-4 space-y-3">
               {[
-                { tier: 'fast',   icon: '\u26A1', label: 'Gyors',   bg: 'linear-gradient(135deg, #34c759, #30d158)', shadow: 'rgba(52,199,89,0.3)',   id: 'z-ai/glm-5.3' },
-                { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'minimax/minimax-m1-80k' },
-                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'deepseek-ai/deepseek-r1' },
-                { tier: 'test',   icon: '\uD83E\uDDEA', label: 'Teszt',   bg: 'linear-gradient(135deg, #ff9500, #ff6b00)', shadow: 'rgba(255,149,0,0.3)',   id: 'moonshotai/kimi-k2.6' },
+                { tier: 'fast',   icon: '\u26A1', label: 'Gyors',   bg: 'linear-gradient(135deg, #34c759, #30d158)', shadow: 'rgba(52,199,89,0.3)',   id: 'z-ai/glm-5.2',         thinking: false },
+                { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'minimaxai/minimax-m3',  thinking: false },
+                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'deepseek-ai/deepseek-v4-pro', thinking: true },
+                { tier: 'test',   icon: '\uD83E\uDDEA', label: 'Teszt',   bg: 'linear-gradient(135deg, #ff9500, #ff6b00)', shadow: 'rgba(255,149,0,0.3)',   id: 'moonshotai/kimi-k2.6',  thinking: true },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (
@@ -810,6 +835,22 @@ export default function ChatInterface() {
                   </button>
                 );
               })}
+
+              {['deepseek-ai/deepseek-v4-pro', 'moonshotai/kimi-k2.6'].includes(selectedModelId) && (
+                <div className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>Gondolkodás</span>
+                    <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>(thinking)</span>
+                  </div>
+                  <button
+                    onClick={() => { setThinking(t => { const v = !t; localStorage.setItem('thinking', String(v)); return v; }); }}
+                    className="relative w-11 h-6 rounded-full transition-colors duration-200"
+                    style={{ background: thinking ? 'var(--accent)' : 'var(--border)' }}
+                  >
+                    <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: thinking ? 'translateX(22px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
