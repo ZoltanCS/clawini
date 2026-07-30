@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
               for (const msg of formattedMessages) {
                 if (Array.isArray(msg.content)) {
                   const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
-                  msg.content = `[Képek leírása: ${description}]\n\n${textParts}`;
+                  msg.content = `${description}\n\n${textParts}`;
                 }
               }
             }
