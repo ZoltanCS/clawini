@@ -62,9 +62,11 @@ export default function ChatInterface() {
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [webSearchMode, setWebSearchMode] = useState<'off' | 'auto' | 'on'>('off');
   const [thinking, setThinking] = useState(false);
+  const [thinkingContent, setThinkingContent] = useState<string>('');
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
+  const thinkingContentRef = useRef<string>('');
   const pendingChatIdRef = useRef<string | null>(null);
 
   // Theme
@@ -226,8 +228,10 @@ export default function ChatInterface() {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let accumulated = '';
+    let accumulatedThinking = '';
     let buffer = '';
     let rafPending = false;
+    let thinkingRafPending = false;
 
     const scheduleFlush = () => {
       if (rafPending) return;
@@ -237,6 +241,18 @@ export default function ChatInterface() {
         if (accumulated !== partialContentRef.current) {
           partialContentRef.current = accumulated;
           setStreamingContent(accumulated);
+        }
+      });
+    };
+
+    const scheduleThinkingFlush = () => {
+      if (thinkingRafPending) return;
+      thinkingRafPending = true;
+      requestAnimationFrame(() => {
+        thinkingRafPending = false;
+        if (accumulatedThinking !== thinkingContentRef.current) {
+          thinkingContentRef.current = accumulatedThinking;
+          setThinkingContent(accumulatedThinking);
         }
       });
     };
@@ -256,14 +272,16 @@ export default function ChatInterface() {
             if (t.startsWith('data: ')) {
               try {
                 const parsed = JSON.parse(t.slice(6));
-                const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) { accumulated += delta; scheduleFlush(); }
+                const delta = parsed.choices?.[0]?.delta;
+                if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
+                if (delta?.content) { accumulated += delta.content; scheduleFlush(); }
               } catch {}
             } else if (t.startsWith('{')) {
               try {
                 const parsed = JSON.parse(t);
-                const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) { accumulated += delta; scheduleFlush(); }
+                const delta = parsed.choices?.[0]?.delta;
+                if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
+                if (delta?.content) { accumulated += delta.content; scheduleFlush(); }
               } catch {}
             }
           }
@@ -271,7 +289,9 @@ export default function ChatInterface() {
       } catch {}
     }
     partialContentRef.current = accumulated;
+    thinkingContentRef.current = accumulatedThinking;
     setStreamingContent(accumulated);
+    setThinkingContent(accumulatedThinking);
     return accumulated;
   }, []);
 
@@ -280,14 +300,14 @@ export default function ChatInterface() {
       abortRef.current.abort();
       abortRef.current = null;
     }
-    setStreamingContent('');
+    setStreamingContent(''); setThinkingContent('');
     setIsLoading(false);
     setRegeneratingId(null);
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) { setIsAuthModalOpen(true); return; }
-    setStreamingContent('');
+    setStreamingContent(''); setThinkingContent('');
     if (abortRef.current) abortRef.current.abort();
     const abort = new AbortController();
     abortRef.current = abort;
@@ -337,14 +357,14 @@ export default function ChatInterface() {
       setTokenCount(heuristicTokens);
 
     try {
-      if (abort.signal.aborted) { setStreamingContent(''); return; }
+      if (abort.signal.aborted) { setStreamingContent(''); setThinkingContent(''); return; }
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking }),
         signal: abort.signal,
       });
 
-      if (abort.signal.aborted) { setStreamingContent(''); return; }
+      if (abort.signal.aborted) { setStreamingContent(''); setThinkingContent(''); return; }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
@@ -352,7 +372,7 @@ export default function ChatInterface() {
       }
 
       const accumulatedContent = await streamResponse(response, abort.signal);
-      setStreamingContent('');
+      setStreamingContent(''); setThinkingContent('');
 
       if (abort.signal.aborted) {
         const partial = partialContentRef.current;
@@ -367,7 +387,7 @@ export default function ChatInterface() {
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(chatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error: any) {
-      setStreamingContent('');
+      setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') {
         const partial = partialContentRef.current;
         if (partial) {
@@ -395,7 +415,7 @@ export default function ChatInterface() {
 
   const handleNewChat = useCallback(async () => {
     if (!user) { setIsAuthModalOpen(true); return; }
-    setStreamingContent('');
+    setStreamingContent(''); setThinkingContent('');
     setEditingMessage(null);
     await createNewChat();
     setIsSidebarOpen(false);
@@ -404,7 +424,7 @@ export default function ChatInterface() {
 
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
-    setStreamingContent('');
+    setStreamingContent(''); setThinkingContent('');
     setIsSidebarOpen(false);
     setError(null);
     setEditingMessage(null);
@@ -434,7 +454,7 @@ export default function ChatInterface() {
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
     if (abortRef.current) abortRef.current.abort();
-    setStreamingContent('');
+    setStreamingContent(''); setThinkingContent('');
 
     const { data: messages } = await supabase
       .from('messages').select('*').eq('chat_id', currentChatId).order('created_at', { ascending: true });
@@ -467,14 +487,14 @@ export default function ChatInterface() {
       }
 
       const accumulatedContent = await streamResponse(response, abort.signal);
-      setStreamingContent('');
+      setStreamingContent(''); setThinkingContent('');
 
       if (abort.signal.aborted) return;
 
       setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: accumulatedContent || '' }], selectedModelId));
       await addMessage(currentChatId, 'assistant', accumulatedContent || 'Sajnos nem kaptam választ.');
     } catch (error: any) {
-      setStreamingContent('');
+      setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') return;
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       setError({ message: msg, timestamp: Date.now(), retryFn: () => handleRegenerate(messageId) });
@@ -571,7 +591,7 @@ export default function ChatInterface() {
       });
       if (!response.ok) throw new Error('GC hiba');
       const content = await streamResponse(response, abort.signal);
-      setStreamingContent('');
+      setStreamingContent(''); setThinkingContent('');
       if (!content) throw new Error('Ures tomorites');
 
       const newChatId = await createNewChat();
@@ -763,6 +783,7 @@ export default function ChatInterface() {
             chatId={currentChatId} isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
+            thinkingContent={thinkingContent}
             onRegenerate={handleRegenerate} onBranch={handleBranch}
             onEdit={handleEditMessage} onDelete={handleDeleteMessage}
             modelLabel={modelLabel} regeneratingId={regeneratingId}
