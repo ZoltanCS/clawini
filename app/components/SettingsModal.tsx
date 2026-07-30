@@ -10,7 +10,7 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const SHOW_TOKEN_KEY = 'showTokenUsage';
 const EXPORT_FORMAT_KEY = 'exportFormat';
 
-const DEFAULT_MODEL_ID = 'meta/llama-3.1-70b-instruct';
+const DEFAULT_MODEL_ID = 'minimax/minimax-m1-80k';
 
 interface SettingsModalProps {
   isOpen: boolean;

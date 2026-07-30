@@ -61,7 +61,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const DEFAULT_NIM_MODEL_ID = 'z-ai/glm-5.3';
+export const DEFAULT_NIM_MODEL_ID = 'minimax/minimax-m1-80k';
 export const DEFAULT_GC_MODEL_ID = 'z-ai/glm-5.3';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {

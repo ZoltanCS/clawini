@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, model, systemPrompt, webSearch } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
-    const modelId = model || 'meta/llama-3.1-70b-instruct';
+    const modelId = model || 'minimax/minimax-m1-80k';
 
     // Tavily web search
     let webContext = '';
