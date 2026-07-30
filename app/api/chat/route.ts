@@ -9,6 +9,24 @@ const FALLBACK_CHAIN: Record<string, string[]> = {
   'moonshotai/kimi-k2.6':         ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
 };
 
+const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
+const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
+
+const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
+
+RULES:
+- Mention every visible object, person, animal, and item — including position, size, color, texture, orientation.
+- Describe spatial relationships precisely ("to the left of X, above Y, overlapping Z in the bottom-right corner").
+- Transcribe ALL visible text character-by-character if any exists.
+- Note lighting conditions, shadows, reflections, gradients, camera angle, depth of field.
+- Describe people: approximate age, gender, clothing, expression, pose, gaze direction.
+- Mention typography, logos, icons, UI elements, and their exact placement.
+- For scenes: describe the background, foreground, weather, time of day, architecture, vegetation.
+- For diagrams/charts: describe every data point, axis label, legend entry, trend line, color coding.
+- Estimate proportions and distances when relevant.
+
+Do NOT summarize. Do NOT interpret. Just describe. Every pixel matters.`;
+
 function getFallbackModels(modelId: string): string[] {
   return FALLBACK_CHAIN[modelId] || [modelId];
 }
@@ -176,6 +194,61 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    }
+
+    // Vision proxy: if model doesn't support vision but user sent images
+    if (!VISION_MODELS.has(modelId)) {
+      const imageMessages = formattedMessages.filter((m: any) =>
+        Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
+      );
+      if (imageMessages.length > 0) {
+        const visionMessages = [
+          { role: 'system', content: VISION_DESCRIBE_PROMPT },
+          ...imageMessages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        ];
+
+        try {
+          const visionRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: VISION_PROXY_MODEL,
+              messages: visionMessages,
+              stream: false,
+              max_tokens: 4096,
+              temperature: 0.2,
+            }),
+            signal: AbortSignal.timeout(60000),
+          });
+
+          if (visionRes.ok) {
+            const visionData = await visionRes.json();
+            const description = visionData.choices?.[0]?.message?.content || '';
+
+            if (description) {
+              for (const msg of formattedMessages) {
+                if (Array.isArray(msg.content)) {
+                  const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
+                  msg.content = `[Képek leírása: ${description}]\n\n${textParts}`;
+                }
+              }
+            }
+          }
+        } catch {
+          for (const msg of formattedMessages) {
+            if (Array.isArray(msg.content)) {
+              const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
+              msg.content = textParts || '(kép - nem sikerült leírni)';
+            }
+          }
+        }
+      }
     }
 
     const candidates = [modelId, ...getFallbackModels(modelId).filter(m => m !== modelId)];
