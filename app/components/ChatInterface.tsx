@@ -121,18 +121,6 @@ export default function ChatInterface() {
   const modelLabel = currentModel?.label || selectedModelId.split('/').pop() || selectedModelId;
   const contextWindow = currentModel?.contextWindow || 131072;
 
-  const groupedModels = useMemo(() => {
-    const g: Record<string, NimModel[]> = {};
-    for (const m of models) (g[m.publisher] ||= []).push(m);
-    return g;
-  }, [models]);
-
-  const publisherOrder = useMemo(() => {
-    const pref = ['NVIDIA', 'Meta', 'DeepSeek', 'Mistral AI', 'Google', 'Microsoft', 'Qwen'];
-    const keys = Object.keys(groupedModels);
-    return [...pref.filter(p => keys.includes(p)), ...keys.filter(k => !pref.includes(k))];
-  }, [groupedModels]);
-
   useEffect(() => {
     if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId)) {
       setSelectedModelId(DEFAULT_NIM_MODEL_ID);
@@ -781,9 +769,9 @@ export default function ChatInterface() {
       {isModelSheetOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="fixed inset-0 bg-black/40 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} style={{ backdropFilter: 'blur(8px)' }} />
-          <div className="relative w-full sm:max-w-lg sm:rounded-3xl sm:max-h-[80vh] sm:mx-4 rounded-t-3xl max-h-[75vh] flex flex-col animate-slideUp glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--fg)' }}>Modell választás</h2>
+          <div className="relative w-full sm:max-w-sm sm:rounded-3xl sm:mx-4 rounded-t-3xl animate-slideUp glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--fg)' }}>Válassz modellt</h2>
               <button onClick={() => setIsModelSheetOpen(false)} className="p-2 rounded-xl hover:bg-surface-hover transition-colors" style={{ color: 'var(--fg-secondary)' }}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -791,44 +779,44 @@ export default function ChatInterface() {
               </button>
             </div>
 
-            {isModelsLoading ? (
-              <div className="flex-1 flex items-center justify-center py-12">
-                <div className="w-6 h-6 rounded-full border-2 border-blue-200 border-t-accent spinner" />
-              </div>
-            ) : models.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center py-12" style={{ color: 'var(--fg-muted)' }}>Nem sikerült betölteni a modelleket</div>
-            ) : (
-              <div className="flex-1 overflow-y-auto px-3 py-3">
-                {publisherOrder.map(publisher => {
-                  const pModels = groupedModels[publisher];
-                  if (!pModels) return null;
-                  return (
-                    <div key={publisher} className="mb-4">
-                      <div className="text-xs font-semibold uppercase tracking-wider px-2 py-1.5" style={{ color: 'var(--fg-muted)' }}>{publisher}</div>
-                      {pModels.map(model => {
-                        const selected = model.id === selectedModelId;
-                        return (
-                          <button key={model.id} onClick={() => handleModelChange(model.id)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200"
-                            style={{ background: selected ? 'var(--accent-glass)' : 'transparent' }}>
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? 'border-accent' : ''}`} style={{ borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)' }}>
-                              {selected && <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium truncate" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
-                                {model.label}
-                              </div>
-                              <div className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{model.id}</div>
-                            </div>
-                            <div className="text-[10px] flex-shrink-0" style={{ color: 'var(--fg-muted)' }}>{(model.contextWindow / 1000).toFixed(0)}k</div>
-                          </button>
-                        );
-                      })}
+            <div className="px-4 py-4 space-y-3">
+              {models.map(model => {
+                const selected = model.id === selectedModelId;
+                const tierColors: Record<string, { bg: string; icon: string; label: string }> = {
+                  fast:   { bg: 'linear-gradient(135deg, #34c759, #30d158)', icon: '\u26A1', label: 'Gyors' },
+                  normal: { bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', icon: '\u2699\uFE0F',  label: 'Normál' },
+                  smart:  { bg: 'linear-gradient(135deg, #af52de, #5856d6)', icon: '\uD83E\uDDE0', label: 'Okos' },
+                };
+                const tier = model.tier || 'normal';
+                const tc = tierColors[tier];
+                return (
+                  <button key={model.id} onClick={() => handleModelChange(model.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-200 glass-border-gradient"
+                    style={{
+                      background: selected ? 'var(--accent-glass)' : 'var(--input-bg)',
+                      border: selected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+                    }}>
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: tc.bg, boxShadow: `0 4px 12px ${tc.bg.includes('34c759') ? 'rgba(52,199,89,0.3)' : tc.bg.includes('007aff') ? 'rgba(0,122,255,0.3)' : 'rgba(88,86,214,0.3)'}` }}>
+                      {tc.icon}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)', color: 'var(--fg-secondary)' }}>{tc.label}</span>
+                      </div>
+                      <div className="text-[15px] font-semibold mt-0.5" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
+                        {model.label}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--fg-muted)' }}>{model.description}</div>
+                    </div>
+                    {selected && (
+                      <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
