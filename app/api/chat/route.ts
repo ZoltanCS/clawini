@@ -6,6 +6,7 @@ const FALLBACK_CHAIN: Record<string, string[]> = {
   'deepseek-ai/deepseek-r1':     ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
   'minimax/minimax-m1-80k':      ['z-ai/glm-5.3'],
   'z-ai/glm-5.3':                ['z-ai/glm-5.3'],
+  'moonshotai/kimi-k2.6':        ['minimax/minimax-m1-80k', 'z-ai/glm-5.3'],
 };
 
 function getFallbackModels(modelId: string): string[] {

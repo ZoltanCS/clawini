@@ -784,6 +784,7 @@ export default function ChatInterface() {
                 { tier: 'fast',   icon: '\u26A1', label: 'Gyors',   bg: 'linear-gradient(135deg, #34c759, #30d158)', shadow: 'rgba(52,199,89,0.3)',   id: 'z-ai/glm-5.3' },
                 { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'minimax/minimax-m1-80k' },
                 { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'deepseek-ai/deepseek-r1' },
+                { tier: 'test',   icon: '\uD83E\uDDEA', label: 'Teszt',   bg: 'linear-gradient(135deg, #ff9500, #ff6b00)', shadow: 'rgba(255,149,0,0.3)',   id: 'moonshotai/kimi-k2.6' },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (

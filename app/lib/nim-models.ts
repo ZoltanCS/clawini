@@ -5,13 +5,14 @@ export interface NimModel {
   contextWindow: number;
   supportsVision: boolean;
   description?: string;
-  tier?: 'fast' | 'normal' | 'smart';
+  tier?: 'fast' | 'normal' | 'smart' | 'test';
 }
 
 const NIM_CATALOG: NimModel[] = [
   { id: 'z-ai/glm-5.3',              label: 'GLM 5.3',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, tier: 'fast',   description: 'Gyors és hatékony' },
   { id: 'minimax/minimax-m1-80k',     label: 'MiniMax M3',       publisher: 'MiniMax',   contextWindow: 131072, supportsVision: false, tier: 'normal', description: 'Kiegyensúlyozott' },
   { id: 'deepseek-ai/deepseek-r1',    label: 'DeepSeek V4 Pro',  publisher: 'DeepSeek',  contextWindow: 131072, supportsVision: false, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
+  { id: 'moonshotai/kimi-k2.6',       label: 'Kimi K2.6',        publisher: 'Moonshot',  contextWindow: 131072, supportsVision: false, tier: 'test',   description: 'Teszt modell' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
