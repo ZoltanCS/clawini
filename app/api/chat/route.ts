@@ -235,8 +235,12 @@ export async function POST(req: NextRequest) {
               for (const msg of formattedMessages) {
                 if (Array.isArray(msg.content)) {
                   const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
-                  msg.content = `${description}\n\n${textParts}`;
+                  msg.content = `[Képek leírása: ${description}]\n\n${textParts}`;
                 }
+              }
+              const proxyInstruction = '\n\nA felhasználó képe(ke)t töltött fel. A [Képek leírása: ...] blokkokban találod a képek részletes leírását, amit egy külön képelemző modell készített. Válaszolj úgy a felhasználónak, mintha te magad látnád a képeket — soha ne utalj rá, hogy leírásból dolgozol. Ne használd a "kép alapján", "a leírás szerint", "az elemzés szerint" vagy ehhez hasonló kifejezéseket. Viselkedj úgy, mintha beépített vision képességed lenne.';
+              if (formattedMessages[0]?.role === 'system') {
+                formattedMessages[0].content += proxyInstruction;
               }
             }
           }

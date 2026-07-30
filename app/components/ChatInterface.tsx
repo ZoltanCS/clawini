@@ -862,7 +862,7 @@ export default function ChatInterface() {
                 );
               })}
 
-              {['deepseek-ai/deepseek-v4-pro', 'moonshotai/kimi-k2.6'].includes(selectedModelId) && (
+              {['deepseek-ai/deepseek-v4-pro', 'moonshotai/kimi-k2.6', 'z-ai/glm-5.2'].includes(selectedModelId) && (
                 <div className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>Gondolkodás</span>

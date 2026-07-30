@@ -10,7 +10,7 @@ export interface NimModel {
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'z-ai/glm-5.2',               label: 'GLM 5.2',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, supportsThinking: false, tier: 'fast',   description: 'Gyors és hatékony' },
+  { id: 'z-ai/glm-5.2',               label: 'GLM 5.2',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'fast',   description: 'Gyors és hatékony' },
   { id: 'minimaxai/minimax-m3',        label: 'MiniMax M3',       publisher: 'MiniMax',   contextWindow: 131072, supportsVision: true, supportsThinking: false, tier: 'normal', description: 'Kiegyensúlyozott' },
   { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro',  publisher: 'DeepSeek',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
   { id: 'moonshotai/kimi-k2.6',        label: 'Kimi K2.6',        publisher: 'Moonshot',  contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'test',   description: 'Teszt modell' },
