@@ -612,7 +612,7 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex overflow-hidden" style={{ height: 'var(--visual-height, 100dvh)', background: 'var(--surface)' }}>
+    <div className="flex overflow-hidden" style={{ height: 'var(--visual-height, 100dvh)', background: 'var(--surface-solid)' }}>
       <Sidebar
         isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}
         chats={chats} currentChatId={currentChatId} onSelectChat={handleSelectChat}
@@ -622,7 +622,7 @@ export default function ChatInterface() {
       />
 
       <main className="flex-1 flex flex-col h-full relative">
-        <header className="flex items-center justify-between px-3 py-2.5 border-b z-10" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <header className="flex items-center justify-between px-3 py-2.5 z-10 glass" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center gap-1.5 min-w-0">
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" style={{ color: 'var(--fg-secondary)' }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -630,8 +630,8 @@ export default function ChatInterface() {
               </svg>
             </button>
 
-            <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-surface-hover transition-all duration-150 max-w-[200px]">
-              <div className="w-5 h-5 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+            <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl glass-hover transition-all duration-200 max-w-[200px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-[#007aff] to-[#5856d6] flex items-center justify-center flex-shrink-0 shadow-sm" style={{ boxShadow: '0 2px 6px rgba(0,122,255,0.2)' }}>
                 <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                 </svg>
@@ -780,8 +780,8 @@ export default function ChatInterface() {
       {/* Model Sheet */}
       {isModelSheetOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="fixed inset-0 bg-black/40 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} />
-          <div className="relative w-full sm:max-w-lg sm:rounded-2xl sm:max-h-[80vh] sm:mx-4 rounded-t-2xl max-h-[75vh] flex flex-col animate-slideUp" style={{ background: 'var(--surface-elevated)' }}>
+          <div className="fixed inset-0 bg-black/40 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} style={{ backdropFilter: 'blur(8px)' }} />
+          <div className="relative w-full sm:max-w-lg sm:rounded-3xl sm:max-h-[80vh] sm:mx-4 rounded-t-3xl max-h-[75vh] flex flex-col animate-slideUp glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
             <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-lg font-semibold" style={{ color: 'var(--fg)' }}>Modell választás</h2>
               <button onClick={() => setIsModelSheetOpen(false)} className="p-2 rounded-xl hover:bg-surface-hover transition-colors" style={{ color: 'var(--fg-secondary)' }}>
@@ -809,9 +809,9 @@ export default function ChatInterface() {
                         const selected = model.id === selectedModelId;
                         return (
                           <button key={model.id} onClick={() => handleModelChange(model.id)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
-                            style={{ background: selected ? 'rgba(59,130,246,0.1)' : 'transparent' }}>
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? 'border-accent' : ''}`} style={{ borderColor: selected ? 'var(--accent)' : 'var(--border)' }}>
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200"
+                            style={{ background: selected ? 'var(--accent-glass)' : 'transparent' }}>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? 'border-accent' : ''}`} style={{ borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)' }}>
                               {selected && <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />}
                             </div>
                             <div className="min-w-0 flex-1">

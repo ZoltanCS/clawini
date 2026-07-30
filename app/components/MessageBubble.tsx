@@ -22,7 +22,7 @@ interface ContentSegment {
 function CopyToast({ show }: { show: boolean }) {
   if (!show) return null;
   return (
-    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-white text-[11px] px-2.5 py-1 rounded-lg whitespace-nowrap copy-toast pointer-events-none" style={{ background: 'var(--surface-elevated)' }}>
+    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-white text-[11px] px-2.5 py-1 rounded-xl whitespace-nowrap copy-toast pointer-events-none glass-elevated" style={{ color: 'var(--fg)' }}>
       <svg className="w-3 h-3 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path className="checkmark-path" strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4.5 12.75l6 6 9-13.5" />
       </svg>
@@ -33,8 +33,8 @@ function CopyToast({ show }: { show: boolean }) {
 
 function HtmlPreviewModal({ html, onClose }: { html: string; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div className="rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" style={{ background: 'var(--surface-elevated)' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }} onClick={onClose}>
+      <div className="rounded-3xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden glass-elevated glass-border-gradient" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>HTML Preview</span>
           <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--fg-muted)' }}>
@@ -70,8 +70,8 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
 
   return (
     <>
-      <div style={{ margin: '12px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between px-3 py-1.5" style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ margin: '12px 0', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+        <div className="flex items-center justify-between px-3 py-1.5 glass" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <span className="text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>{language || 'code'}</span>
           <div className="flex items-center gap-1">
             {isHtml && (
@@ -228,7 +228,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
         onMouseLeave={() => setShowActions(false)}
       >
         <div
-          className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl break-words overflow-hidden min-w-0 transition-shadow duration-200`}
+          className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-3xl break-words overflow-hidden min-w-0 transition-all duration-200 ${isUser ? 'glass-border-gradient' : ''}`}
           style={{
             background: isUser ? 'var(--bubble-user)' : 'var(--bubble-ai)',
             color: 'var(--fg)',

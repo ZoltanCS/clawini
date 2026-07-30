@@ -37,17 +37,17 @@ export default function Sidebar({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 animate-fadeIn" onClick={onClose} style={{ background: 'rgba(0,0,0,0.4)' }} />
+      <div className="fixed inset-0 z-40 animate-fadeIn" onClick={onClose} style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }} />
 
-      <aside className="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[300px] shadow-xl flex flex-col animate-slideInLeft" style={{ background: 'var(--surface-elevated)' }}>
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+      <aside className="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[300px] flex flex-col animate-slideInLeft glass-elevated glass-border-gradient" style={{ borderRadius: '0 20px 20px 0' }}>
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#007aff] to-[#5856d6] flex items-center justify-center shadow-md" style={{ boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span className="font-semibold" style={{ color: 'var(--fg)' }}>Clawini</span>
+            <span className="font-semibold text-[15px]" style={{ color: 'var(--fg)' }}>Clawini</span>
           </div>
           <button onClick={onClose} className="p-2 rounded-full touch-active" style={{ color: 'var(--fg-muted)' }}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,10 +59,10 @@ export default function Sidebar({
         <div className="p-3">
           <button
             onClick={onNewChat}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left"
-            style={{ background: 'var(--surface-hover)', color: 'var(--fg-secondary)' }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 text-left glass-hover"
+            style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg-muted)' }}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--accent)' }}>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             <span className="font-medium">Új beszélgetés</span>
@@ -82,13 +82,13 @@ export default function Sidebar({
                   <div
                     key={chat.id}
                     onClick={() => onSelectChat(chat.id)}
-                    className="group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
+                    className="group flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-200"
                     style={{
-                      background: isSelected ? 'rgba(59,130,246,0.1)' : 'transparent',
+                      background: isSelected ? 'var(--accent-glass)' : 'transparent',
                       color: isSelected ? 'var(--accent)' : 'var(--fg)',
                     }}
                   >
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg-muted)' }}>
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: isSelected ? 'var(--accent)' : 'var(--fg-muted)' }}>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                     </svg>
                     <div className="flex-1 min-w-0">
@@ -97,7 +97,7 @@ export default function Sidebar({
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id); }}
-                      className="p-1.5 opacity-0 group-hover:opacity-100 rounded-lg transition-all"
+                      className="p-1.5 opacity-0 group-hover:opacity-100 rounded-xl transition-all hover-scale"
                       style={{ color: 'var(--danger)' }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,23 +111,23 @@ export default function Sidebar({
           )}
         </div>
 
-        <div className="p-4 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="p-4 space-y-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           {user ? (
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)' }}>
                 {user.email?.charAt(0).toUpperCase() || '?'}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{user.email}</div>
                 <div className="text-xs" style={{ color: 'var(--success)' }}>Bejelentkezve</div>
               </div>
-              <button onClick={onSettings} className="p-2 rounded-full touch-active" title="Beállítások" style={{ color: 'var(--fg-secondary)' }}>
+              <button onClick={onSettings} className="p-2 rounded-full touch-active hover-scale" title="Beállítások" style={{ color: 'var(--fg-secondary)' }}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
-              <button onClick={onSignOut} className="p-2 rounded-full touch-active" title="Kijelentkezés" style={{ color: 'var(--fg-secondary)' }}>
+              <button onClick={onSignOut} className="p-2 rounded-full touch-active hover-scale" title="Kijelentkezés" style={{ color: 'var(--fg-secondary)' }}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                 </svg>
@@ -136,8 +136,8 @@ export default function Sidebar({
           ) : (
             <button
               onClick={onSignIn}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl transition-colors"
-              style={{ background: 'var(--accent)' }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-2xl transition-all duration-300 hover-scale"
+              style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: '0 4px 16px rgba(0,122,255,0.3)' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />

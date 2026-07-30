@@ -41,8 +41,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="rounded-2xl shadow-xl w-full max-w-md p-6" style={{ background: 'var(--surface-elevated)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+      <div className="rounded-3xl shadow-xl w-full max-w-md p-6 glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold" style={{ color: 'var(--fg)' }}>
             {isSignUp ? 'Regisztráció' : 'Bejelentkezés'}
@@ -67,8 +67,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg text-base"
-              style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
+              className="w-full px-4 py-2.5 rounded-2xl text-base"
+              style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
               required
             />
           </div>
@@ -79,8 +79,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg text-base"
-              style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
+              className="w-full px-4 py-2.5 rounded-2xl text-base"
+              style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
               required
             />
           </div>
@@ -88,8 +88,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-            style={{ background: 'var(--accent)' }}
+            className="w-full py-3 text-white font-medium rounded-2xl transition-all duration-200 disabled:opacity-50 hover-scale"
+            style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: '0 4px 16px rgba(0,122,255,0.3)' }}
           >
             {isLoading ? 'Töltés...' : isSignUp ? 'Regisztráció' : 'Bejelentkezés'}
           </button>
@@ -109,8 +109,8 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
             <button
               onClick={() => handleOAuth('google')}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2 rounded-lg transition-colors"
-              style={{ border: '1px solid var(--border)', color: 'var(--fg)' }}
+              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 glass-hover"
+              style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg)' }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

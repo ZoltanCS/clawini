@@ -112,8 +112,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" style={{ background: 'var(--surface-elevated)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+      <div className="rounded-3xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="flex justify-between items-center p-5" style={{ borderBottom: '1px solid var(--border)' }}>
           <h2 className="text-xl font-semibold" style={{ color: 'var(--fg)' }}>Beállítások</h2>
           <button onClick={onClose} className="p-2 rounded-full touch-active" style={{ color: 'var(--fg-muted)' }}>
@@ -125,14 +125,14 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
         <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
           {/* Mobile tabs: scrollable row */}
-          <div className="flex sm:flex-col gap-1 p-3 overflow-x-auto sm:overflow-y-auto sm:w-36 flex-shrink-0 scrollbar-none" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+          <div className="flex sm:flex-col gap-1 p-3 overflow-x-auto sm:overflow-y-auto sm:w-36 flex-shrink-0 scrollbar-none glass" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm whitespace-nowrap sm:whitespace-normal transition-colors"
+                className="flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm whitespace-nowrap sm:whitespace-normal transition-all duration-200"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(59,130,246,0.1)' : 'transparent',
+                  background: activeTab === tab.id ? 'var(--accent-glass)' : 'transparent',
                   color: activeTab === tab.id ? 'var(--accent)' : 'var(--fg-secondary)',
                 }}
               >
@@ -148,7 +148,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Alapértelmezett modell</label>
                   <div className="text-xs mb-2" style={{ color: 'var(--fg-muted)' }}>A modell választóban is módosítható</div>
-                  <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'var(--surface-hover)', color: 'var(--fg)', border: '1px solid var(--border)' }}>
+                  <div className="px-3 py-2.5 rounded-2xl text-sm" style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}>
                     {defaultModel.split('/').pop() || defaultModel}
                   </div>
                 </div>
@@ -178,10 +178,10 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       <button
                         key={opt.value}
                         onClick={() => setExportFormat(opt.value)}
-                        className="px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
+                        className="px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-200"
                         style={{
-                          borderColor: exportFormat === opt.value ? 'var(--accent)' : 'var(--border)',
-                          background: exportFormat === opt.value ? 'rgba(59,130,246,0.1)' : 'transparent',
+                          border: exportFormat === opt.value ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+                          background: exportFormat === opt.value ? 'var(--accent-glass)' : 'var(--input-bg)',
                           color: exportFormat === opt.value ? 'var(--accent)' : 'var(--fg-secondary)',
                         }}
                       >
@@ -196,8 +196,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   <select
                     value={settings.language}
                     onChange={(e) => setSettings({ ...settings, language: e.target.value as 'hu' | 'en' })}
-                    className="w-full px-4 py-2.5 rounded-lg text-base"
-                    style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
+                    className="w-full px-4 py-2.5 rounded-2xl text-base"
+                    style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
                   >
                     <option value="hu">Magyar</option>
                     <option value="en">English</option>
@@ -240,8 +240,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     value={systemPrompt}
                     onChange={(e) => setSystemPrompt(e.target.value)}
                     rows={8}
-                    className="w-full px-4 py-2.5 rounded-lg resize-none text-base"
-                    style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
+                    className="w-full px-4 py-2.5 rounded-2xl resize-none text-base"
+                    style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>Az AI asszisztens személyiségét és viselkedését határozza meg. A promptba automatikusan bekerülnek: dátum, idő, időzóna, nap, hónap, év.</p>
                 </div>
@@ -255,18 +255,18 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   <input
                     type="text" value={settings.fullName}
                     onChange={(e) => setSettings({ ...settings, fullName: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-lg text-base"
-                    style={{ background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--border)' }}
+                    className="w-full px-4 py-2.5 rounded-2xl text-base"
+                    style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
                     placeholder="Add meg a neved"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--fg-secondary)' }}>Email</label>
-                  <input type="email" value={user?.email || ''} disabled className="w-full px-4 py-2.5 rounded-lg text-base" style={{ background: 'var(--surface-hover)', color: 'var(--fg-muted)', border: '1px solid var(--border)' }} />
+                  <input type="email" value={user?.email || ''} disabled className="w-full px-4 py-2.5 rounded-2xl text-base" style={{ background: 'var(--input-bg)', color: 'var(--fg-muted)', border: '1px solid var(--border-subtle)' }} />
                 </div>
                 <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                   <h3 className="font-medium mb-2" style={{ color: 'var(--danger)' }}>Veszélyes zóna</h3>
-                  <button onClick={handleDeleteAccount} className="px-4 py-2.5 rounded-lg transition-colors" style={{ border: '1px solid var(--danger)', color: 'var(--danger)' }}>Fiók törlése</button>
+                  <button onClick={handleDeleteAccount} className="px-4 py-2.5 rounded-2xl transition-all duration-200 hover-scale" style={{ border: '1px solid var(--danger)', color: 'var(--danger)' }}>Fiók törlése</button>
                 </div>
               </div>
             )}
@@ -280,10 +280,10 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       <button
                         key={theme}
                         onClick={() => setSettings({ ...settings, theme })}
-                        className="p-4 border-2 rounded-xl text-center transition-colors"
+                        className="p-4 rounded-3xl text-center transition-all duration-200 glass-border-gradient"
                         style={{
-                          borderColor: settings.theme === theme ? 'var(--accent)' : 'var(--border)',
-                          background: settings.theme === theme ? 'rgba(59,130,246,0.1)' : 'transparent',
+                          background: settings.theme === theme ? 'var(--accent-glass)' : 'var(--input-bg)',
+                          border: settings.theme === theme ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
                           color: 'var(--fg)',
                         }}
                       >
@@ -297,8 +297,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             )}
 
             <div className="mt-8 flex justify-end gap-2">
-              <button onClick={onClose} className="px-4 py-2.5 font-medium rounded-lg transition-colors" style={{ border: '1px solid var(--border)', color: 'var(--fg-secondary)' }}>Mégsem</button>
-              <button onClick={handleSave} disabled={isLoading} className="px-6 py-2.5 text-white font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'var(--accent)' }}>
+              <button onClick={onClose} className="px-4 py-2.5 font-medium rounded-2xl transition-all duration-200 glass-hover" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-secondary)' }}>Mégsem</button>
+              <button onClick={handleSave} disabled={isLoading} className="px-6 py-2.5 text-white font-medium rounded-2xl transition-all duration-200 disabled:opacity-50 hover-scale" style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
                 {isLoading ? 'Mentés...' : 'Mentés'}
               </button>
             </div>
