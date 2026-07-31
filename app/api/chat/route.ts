@@ -355,16 +355,13 @@ export async function POST(req: NextRequest) {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
 
-                  if (event.contentBlockDelta) {
-                    const delta = event.contentBlockDelta.delta;
-                    if (delta?.text) {
-                      const chunk = JSON.stringify({ choices: [{ delta: { content: delta.text } }] });
-                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
-                    } else if (delta?.reasoningContent?.text) {
-                      const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: delta.reasoningContent.text } }] });
-                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
-                    }
-                  } else if (event.messageStop) {
+                  if (event.delta?.text) {
+                    const chunk = JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] });
+                    controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                  } else if (event.delta?.reasoningContent?.text) {
+                    const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: event.delta.reasoningContent.text } }] });
+                    controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                  } else if (event.stopReason) {
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   } else if (event.internalServerException || event.modelStreamErrorException || event.validationException) {
                     const errMsg = event.internalServerException?.message || event.modelStreamErrorException?.message || event.validationException?.message || 'Unknown stream error';
