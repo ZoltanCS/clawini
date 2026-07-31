@@ -839,6 +839,7 @@ export default function ChatInterface() {
               {[
                 { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'moonshotai.kimi-k2.5',  thinking: true },
                 { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'zai.glm-5',            thinking: true },
+                { tier: 'ultra',  icon: '\uD83D\uDC8E', label: 'Ultra',   bg: 'linear-gradient(135deg, #d4af37, #f5e6a3)', shadow: 'rgba(212,175,55,0.3)', id: 'global.anthropic.claude-opus-4-6-v1', thinking: true },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (

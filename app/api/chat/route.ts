@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { signAwsRequest } from '@/app/lib/aws-sigv4';
 
 export const dynamic = 'force-dynamic';
 
 const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
 const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
+const CLAUDE_REGION = process.env.AWS_CLAUDE_REGION || 'eu-central-1';
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
   'moonshotai.kimi-k2.5':     ['zai.glm-5'],
   'zai.glm-5':                ['zai.glm-5'],
 };
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5']);
+function isClaudeModel(id: string): boolean {
+  return id.startsWith('global.anthropic.') || id.startsWith('anthropic.claude');
+}
+
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
@@ -256,6 +262,139 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // --- CLAUDE PATH: bedrock-runtime Converse Stream API ---
+    if (isClaudeModel(modelId)) {
+      const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+      const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+      if (!accessKeyId || !secretAccessKey) {
+        return NextResponse.json({ error: 'AWS IAM credentials not configured for Claude' }, { status: 500 });
+      }
+
+      // Convert messages to Converse format
+      const systemBlocks: { text: string }[] = [];
+      const converseMessages: any[] = [];
+      for (const msg of formattedMessages) {
+        if (msg.role === 'system') {
+          systemBlocks.push({ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) });
+          continue;
+        }
+        if (typeof msg.content === 'string') {
+          converseMessages.push({ role: msg.role, content: [{ text: msg.content }] });
+        } else if (Array.isArray(msg.content)) {
+          const blocks: any[] = [];
+          for (const part of msg.content) {
+            if (part.type === 'text') blocks.push({ text: part.text });
+            else if (part.type === 'image_url') {
+              const url: string = part.image_url?.url || '';
+              const m = url.match(/^data:(image\/\w+);base64,(.+)$/);
+              if (m) {
+                blocks.push({ image: { format: m[1].split('/')[1], source: { bytes: m[2] } } });
+              } else {
+                blocks.push({ text: `[image: ${url.slice(0, 100)}]` });
+              }
+            }
+          }
+          if (blocks.length) converseMessages.push({ role: msg.role, content: blocks });
+        }
+      }
+
+      const converseBody: any = {
+        modelId: modelId,
+        messages: converseMessages,
+        system: systemBlocks.length ? systemBlocks : undefined,
+        inferenceConfig: { maxTokens: 4096, temperature: 0.7, topP: 0.9 },
+      };
+      if (thinking) {
+        converseBody.performanceConfig = { reasoning: 'enabled' };
+      }
+
+      const endpoint = `https://bedrock-runtime.${CLAUDE_REGION}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse-stream`;
+      const bodyStr = JSON.stringify(converseBody);
+      const headers = signAwsRequest('POST', endpoint, bodyStr, CLAUDE_REGION, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
+
+      const converseRes = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(180000),
+      });
+
+      if (!converseRes.ok) {
+        let err = '';
+        try { err = await converseRes.text(); } catch {}
+        return NextResponse.json({ error: `Claude API error ${converseRes.status}`, details: err }, { status: converseRes.status });
+      }
+
+      // Transform Converse Stream binary event format → OpenAI SSE
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          try {
+            const reader = converseRes.body!.getReader();
+            let buffer = new Uint8Array(0);
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              // Append to buffer
+              const newBuf = new Uint8Array(buffer.length + value.length);
+              newBuf.set(buffer);
+              newBuf.set(value, buffer.length);
+              buffer = newBuf;
+
+              // Parse binary event stream frames (AWS event stream encoding)
+              while (buffer.length >= 12) {
+                const view = new DataView(buffer.buffer, buffer.byteOffset);
+                const totalLen = view.getUint32(0);
+                if (buffer.length < totalLen) break;
+
+                const headerLen = view.getUint32(4);
+                const payloadStart = 12 + headerLen;
+                const payloadEnd = totalLen - 4; // minus message CRC
+                const payload = buffer.slice(payloadStart, payloadEnd);
+                buffer = buffer.slice(totalLen);
+
+                try {
+                  const event = JSON.parse(new TextDecoder().decode(payload));
+
+                  if (event.contentBlockDelta) {
+                    const delta = event.contentBlockDelta.delta;
+                    if (delta?.text) {
+                      const chunk = JSON.stringify({ choices: [{ delta: { content: delta.text } }] });
+                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                    } else if (delta?.reasoningContent?.text) {
+                      const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: delta.reasoningContent.text } }] });
+                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                    }
+                  } else if (event.messageStop) {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  }
+                } catch { /* skip unparseable frames */ }
+              }
+            }
+
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          } catch (e: any) {
+            const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] });
+            controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          }
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
+    // --- OPEN-WEIGHT MODELS: bedrock-mantle chat/completions ---
     const candidates = [modelId, ...getFallbackModels(modelId).filter(m => m !== modelId)];
     let nimRes: Response | null = null;
     let usedModel = modelId;
