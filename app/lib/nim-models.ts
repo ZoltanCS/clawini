@@ -6,14 +6,13 @@ export interface NimModel {
   supportsVision: boolean;
   supportsThinking: boolean;
   description?: string;
-  tier?: 'fast' | 'normal' | 'smart' | 'test';
+  tier?: 'normal' | 'smart';
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'z-ai/glm-5.2',               label: 'GLM 5.2',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'fast',   description: 'Gyors és hatékony' },
-  { id: 'minimaxai/minimax-m3',        label: 'MiniMax M3',       publisher: 'MiniMax',   contextWindow: 131072, supportsVision: true, supportsThinking: false, tier: 'normal', description: 'Kiegyensúlyozott' },
-  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro',  publisher: 'DeepSeek',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
-  { id: 'moonshotai/kimi-k2.6',        label: 'Kimi K2.6',        publisher: 'Moonshot',  contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'test',   description: 'Teszt modell' },
+  { id: 'moonshotai/kimi-k2.6',        label: 'Kimi K2.6',        publisher: 'Moonshot',  contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
+  { id: 'z-ai/glm-5.2',                label: 'GLM 5.2',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
+  { id: 'minimaxai/minimax-m3',        label: 'MiniMax M3',       publisher: 'MiniMax',   contextWindow: 131072, supportsVision: true, supportsThinking: false, description: 'Kép leírás proxy' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
@@ -64,21 +63,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const TIER_FALLBACK: Record<string, string> = {
-  smart: 'minimaxai/minimax-m3',
-  normal: 'z-ai/glm-5.2',
-  fast: 'z-ai/glm-5.2',
-  test: 'minimaxai/minimax-m3',
-};
-
-export const TIER_ORDER: Record<string, string[]> = {
-  smart:  ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
-  normal: ['z-ai/glm-5.2'],
-  fast:   ['z-ai/glm-5.2'],
-  test:   ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
-};
-
-export const DEFAULT_NIM_MODEL_ID = 'minimaxai/minimax-m3';
+export const DEFAULT_NIM_MODEL_ID = 'moonshotai/kimi-k2.6';
 export const DEFAULT_GC_MODEL_ID = 'z-ai/glm-5.2';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {

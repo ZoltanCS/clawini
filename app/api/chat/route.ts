@@ -3,10 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'deepseek-ai/deepseek-v4-pro':  ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
-  'minimaxai/minimax-m3':         ['z-ai/glm-5.2'],
+  'moonshotai/kimi-k2.6':         ['z-ai/glm-5.2'],
   'z-ai/glm-5.2':                 ['z-ai/glm-5.2'],
-  'moonshotai/kimi-k2.6':         ['minimaxai/minimax-m3', 'z-ai/glm-5.2'],
 };
 
 const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
@@ -151,7 +149,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, model, systemPrompt, webSearch, thinking } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
-    const modelId = model || 'minimaxai/minimax-m3';
+    const modelId = model || 'moonshotai/kimi-k2.6';
 
     // Tavily web search
     let webContext = '';
