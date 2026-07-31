@@ -109,7 +109,16 @@ html::before {
 .dark html::before,
 html.dark::before {
   background:
-    radial-gradient(ellipse 80% 50% at 50% 95%, rgba(60, 120, 200, 0.25) 0%, rgba(40, 90, 170, 0.12) 30%, transparent 60%),
+    /* Main blue tempera blob - bottom center */
+    radial-gradient(ellipse 70% 35% at 50% 100%, rgba(45, 120, 210, 0.7) 0%, rgba(30, 90, 180, 0.4) 40%, transparent 70%),
+    /* White unmixed streaks */
+    radial-gradient(ellipse 20% 12% at 35% 92%, rgba(200, 220, 255, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 15% 8% at 65% 96%, rgba(220, 235, 255, 0.25) 0%, transparent 60%),
+    /* Dark unmixed patches */
+    radial-gradient(ellipse 25% 15% at 55% 88%, rgba(10, 25, 60, 0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 12% 10% at 30% 98%, rgba(5, 15, 40, 0.4) 0%, transparent 50%),
+    /* Slight blue variation */
+    radial-gradient(ellipse 40% 20% at 45% 95%, rgba(60, 140, 230, 0.3) 0%, transparent 60%),
     var(--surface-solid);
 }
 
