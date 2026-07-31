@@ -331,32 +331,29 @@ export async function POST(req: NextRequest) {
           const encoder = new TextEncoder();
           try {
             const reader = converseRes.body!.getReader();
-            let buffer = new Uint8Array(0);
+            let buffer = Buffer.alloc(0);
 
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
 
-              // Append to buffer
-              const newBuf = new Uint8Array(buffer.length + value.length);
-              newBuf.set(buffer);
-              newBuf.set(value, buffer.length);
-              buffer = newBuf;
+              buffer = Buffer.concat([buffer, Buffer.from(value)]);
 
               // Parse binary event stream frames (AWS event stream encoding)
               while (buffer.length >= 12) {
-                const view = new DataView(buffer.buffer, buffer.byteOffset);
-                const totalLen = view.getUint32(0);
+                const totalLen = buffer.readUInt32BE(0);
                 if (buffer.length < totalLen) break;
 
-                const headerLen = view.getUint32(4);
+                const headerLen = buffer.readUInt32BE(4);
+                // prelude CRC at bytes 8-11
                 const payloadStart = 12 + headerLen;
                 const payloadEnd = totalLen - 4; // minus message CRC
                 const payload = buffer.slice(payloadStart, payloadEnd);
                 buffer = buffer.slice(totalLen);
 
                 try {
-                  const event = JSON.parse(new TextDecoder().decode(payload));
+                  const text = payload.toString('utf8');
+                  const event = JSON.parse(text);
 
                   if (event.contentBlockDelta) {
                     const delta = event.contentBlockDelta.delta;
@@ -369,6 +366,10 @@ export async function POST(req: NextRequest) {
                     }
                   } else if (event.messageStop) {
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  } else if (event.internalServerException || event.modelStreamErrorException || event.validationException) {
+                    const errMsg = event.internalServerException?.message || event.modelStreamErrorException?.message || event.validationException?.message || 'Unknown stream error';
+                    const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Hiba: ${errMsg}]` } }] });
+                    controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
                   }
                 } catch { /* skip unparseable frames */ }
               }
