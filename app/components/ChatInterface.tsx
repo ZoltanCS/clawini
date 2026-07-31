@@ -585,7 +585,14 @@ export default function ChatInterface() {
     const idx = msgs.findIndex(m => m.id === messageId);
     if (idx === -1) return;
     const toDelete = msgs.slice(idx).map(m => m.id);
-    await supabase.from('messages').delete().in('id', toDelete);
+    const { error } = await supabase.from('messages').delete().in('id', toDelete);
+    if (error) {
+      console.error('Delete error:', error);
+      // Fallback: try deleting one by one
+      for (const id of toDelete) {
+        await supabase.from('messages').delete().eq('id', id);
+      }
+    }
   }, [currentChatId, user]);
 
   const handleGarbageCollect = useCallback(async () => {
