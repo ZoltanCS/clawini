@@ -42,38 +42,38 @@
 }
 
 .dark {
-  /* Deep Navy Blue — inspired by image */
-  --surface: rgba(12, 20, 42, 0.85);
-  --surface-solid: #060d1f;
-  --surface-hover: rgba(20, 35, 70, 0.65);
-  --surface-elevated: rgba(18, 30, 60, 0.88);
-  --surface-deep: rgba(10, 18, 38, 0.7);
-  --border: rgba(80, 130, 255, 0.12);
-  --border-subtle: rgba(80, 130, 255, 0.08);
-  --border-glass: linear-gradient(135deg, rgba(100,160,255,0.15) 0%, rgba(100,160,255,0.03) 50%, rgba(100,160,255,0.1) 100%);
-  --fg: #e8edf5;
-  --fg-secondary: #8a9bbd;
-  --fg-muted: #4a5f85;
-  --accent: #4d9fff;
-  --accent-hover: #70b3ff;
-  --accent-glass: rgba(77, 159, 255, 0.18);
-  --bubble-user: rgba(77, 159, 255, 0.14);
-  --bubble-ai: rgba(15, 25, 50, 0.5);
+  /* Deep dark with blue light from below */
+  --surface: rgba(8, 12, 24, 0.55);
+  --surface-solid: #050810;
+  --surface-hover: rgba(15, 22, 45, 0.5);
+  --surface-elevated: rgba(12, 18, 35, 0.7);
+  --surface-deep: rgba(8, 12, 24, 0.6);
+  --border: rgba(120, 160, 220, 0.1);
+  --border-subtle: rgba(120, 160, 220, 0.06);
+  --border-glass: linear-gradient(135deg, rgba(150,190,255,0.12) 0%, rgba(150,190,255,0.02) 50%, rgba(150,190,255,0.08) 100%);
+  --fg: #e4e8f0;
+  --fg-secondary: #8899b8;
+  --fg-muted: #4a5a78;
+  --accent: #5ba3f5;
+  --accent-hover: #7db8ff;
+  --accent-glass: rgba(91, 163, 245, 0.14);
+  --bubble-user: rgba(91, 163, 245, 0.1);
+  --bubble-ai: rgba(10, 15, 30, 0.35);
   --danger: #ff453a;
   --success: #30d158;
   --warning: #ff9f0a;
 
-  /* Glass surfaces — dark navy */
-  --glass-bg: rgba(12, 20, 42, 0.78);
-  --glass-blur: 24px;
-  --glass-border: 1px solid rgba(80, 130, 255, 0.1);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 10, 40, 0.3);
-  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 10, 40, 0.35);
-  --glass-highlight: linear-gradient(135deg, rgba(100,160,255,0.08) 0%, rgba(100,160,255,0) 60%);
-  --glass-refraction: linear-gradient(180deg, rgba(100,160,255,0.06) 0%, rgba(100,160,255,0) 40%);
+  /* Frosted glass */
+  --glass-bg: rgba(10, 15, 30, 0.45);
+  --glass-blur: 28px;
+  --glass-border: 1px solid rgba(120, 160, 220, 0.08);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --glass-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
+  --glass-highlight: linear-gradient(135deg, rgba(150,190,255,0.06) 0%, transparent 60%);
+  --glass-refraction: none;
 
-  --input-bg: rgba(30, 50, 90, 0.4);
-  --input-bg-focus: rgba(40, 65, 110, 0.5);
+  --input-bg: rgba(20, 30, 55, 0.45);
+  --input-bg-focus: rgba(30, 45, 75, 0.5);
 }
 
 * {
@@ -109,9 +109,7 @@ html::before {
 .dark html::before,
 html.dark::before {
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(40, 100, 220, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 80%, rgba(20, 60, 160, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(10, 30, 80, 0.3) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 50% at 50% 95%, rgba(60, 120, 200, 0.25) 0%, rgba(40, 90, 170, 0.12) 30%, transparent 60%),
     var(--surface-solid);
 }
 

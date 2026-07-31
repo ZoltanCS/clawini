@@ -676,7 +676,7 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex overflow-hidden" style={{ height: 'var(--visual-height, 100dvh)', background: 'var(--surface-solid)' }}>
+    <div className="flex overflow-hidden" style={{ height: 'var(--visual-height, 100dvh)' }}>
       <Sidebar
         isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}
         chats={chats} currentChatId={currentChatId} onSelectChat={handleSelectChat}
@@ -808,7 +808,7 @@ export default function ChatInterface() {
           </div>
         )}
 
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%)' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
           <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} />
           <MessageList
             chatId={currentChatId} isLoading={isLoading}
@@ -821,7 +821,7 @@ export default function ChatInterface() {
           />
         </div>
 
-        <div className="px-3 py-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', background: 'linear-gradient(to top, var(--surface) 60%, transparent)' }}>
+        <div className="px-3 py-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
           <ChatInput
             onSend={(content, imageUrls) => { handleSendMessage(content, imageUrls); }}
             isLoading={isLoading} onImageUpload={handleImageUpload}

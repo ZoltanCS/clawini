@@ -236,6 +236,8 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
           className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-3xl break-words overflow-hidden min-w-0 transition-all duration-200 ${isUser ? 'glass-border-gradient' : ''}`}
           style={{
             background: isUser ? 'var(--bubble-user)' : 'var(--bubble-ai)',
+            backdropFilter: 'blur(16px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(16px) saturate(150%)',
             color: 'var(--fg)',
           }}
         >
