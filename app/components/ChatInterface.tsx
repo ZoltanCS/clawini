@@ -110,12 +110,13 @@ export default function ChatInterface() {
 
     // Migrate old model IDs
     const modelIdMigration: Record<string, string> = {
-      'z-ai/glm-5.3': 'zai.glm-4.7',
-      'z-ai/glm-5.2': 'zai.glm-4.7',
+      'z-ai/glm-5.3': 'zai.glm-5',
+      'z-ai/glm-5.2': 'zai.glm-5',
+      'zai.glm-4.7': 'zai.glm-5',
       'minimax/minimax-m1-80k': 'moonshotai.kimi-k2.5',
       'minimaxai/minimax-m3': 'moonshotai.kimi-k2.5',
-      'deepseek-ai/deepseek-r1': 'zai.glm-4.7',
-      'deepseek-ai/deepseek-v4-pro': 'zai.glm-4.7',
+      'deepseek-ai/deepseek-r1': 'zai.glm-5',
+      'deepseek-ai/deepseek-v4-pro': 'zai.glm-5',
       'moonshotai/kimi-k2.6': 'moonshotai.kimi-k2.5',
     };
     const migratedModel = savedModel ? (modelIdMigration[savedModel] || savedModel) : null;
@@ -837,7 +838,7 @@ export default function ChatInterface() {
             <div className="px-4 py-4 space-y-3">
               {[
                 { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'moonshotai.kimi-k2.5',  thinking: true },
-                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'zai.glm-4.7',           thinking: true },
+                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'zai.glm-5',            thinking: true },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (

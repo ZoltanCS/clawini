@@ -6,8 +6,8 @@ const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
 const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'moonshotai.kimi-k2.5':     ['zai.glm-4.7'],
-  'zai.glm-4.7':              ['zai.glm-4.7'],
+  'moonshotai.kimi-k2.5':     ['zai.glm-5'],
+  'zai.glm-5':                ['zai.glm-5'],
 };
 
 const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5']);
