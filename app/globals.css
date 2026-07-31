@@ -42,38 +42,38 @@
 }
 
 .dark {
-  /* Liquid Glass — Dark */
-  --surface: rgba(28, 28, 30, 0.72);
-  --surface-solid: #000000;
-  --surface-hover: rgba(44, 44, 46, 0.65);
-  --surface-elevated: rgba(44, 44, 46, 0.82);
-  --surface-deep: rgba(28, 28, 30, 0.55);
-  --border: rgba(255, 255, 255, 0.12);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-glass: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.1) 100%);
-  --fg: #f5f5f7;
-  --fg-secondary: #98989d;
-  --fg-muted: #636366;
-  --accent: #0a84ff;
-  --accent-hover: #409cff;
-  --accent-glass: rgba(10, 132, 255, 0.22);
-  --bubble-user: rgba(10, 132, 255, 0.18);
-  --bubble-ai: transparent;
+  /* Deep Navy Blue — inspired by image */
+  --surface: rgba(12, 20, 42, 0.85);
+  --surface-solid: #060d1f;
+  --surface-hover: rgba(20, 35, 70, 0.65);
+  --surface-elevated: rgba(18, 30, 60, 0.88);
+  --surface-deep: rgba(10, 18, 38, 0.7);
+  --border: rgba(80, 130, 255, 0.12);
+  --border-subtle: rgba(80, 130, 255, 0.08);
+  --border-glass: linear-gradient(135deg, rgba(100,160,255,0.15) 0%, rgba(100,160,255,0.03) 50%, rgba(100,160,255,0.1) 100%);
+  --fg: #e8edf5;
+  --fg-secondary: #8a9bbd;
+  --fg-muted: #4a5f85;
+  --accent: #4d9fff;
+  --accent-hover: #70b3ff;
+  --accent-glass: rgba(77, 159, 255, 0.18);
+  --bubble-user: rgba(77, 159, 255, 0.14);
+  --bubble-ai: rgba(15, 25, 50, 0.5);
   --danger: #ff453a;
   --success: #30d158;
   --warning: #ff9f0a;
 
-  /* Glass surfaces — dark */
-  --glass-bg: rgba(28, 28, 30, 0.72);
+  /* Glass surfaces — dark navy */
+  --glass-bg: rgba(12, 20, 42, 0.78);
   --glass-blur: 24px;
-  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
-  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
-  --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 60%);
-  --glass-refraction: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 40%);
+  --glass-border: 1px solid rgba(80, 130, 255, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 10, 40, 0.3);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 10, 40, 0.35);
+  --glass-highlight: linear-gradient(135deg, rgba(100,160,255,0.08) 0%, rgba(100,160,255,0) 60%);
+  --glass-refraction: linear-gradient(180deg, rgba(100,160,255,0.06) 0%, rgba(100,160,255,0) 40%);
 
-  --input-bg: rgba(142, 142, 147, 0.12);
-  --input-bg-focus: rgba(142, 142, 147, 0.18);
+  --input-bg: rgba(30, 50, 90, 0.4);
+  --input-bg-focus: rgba(40, 65, 110, 0.5);
 }
 
 * {
@@ -109,8 +109,9 @@ html::before {
 .dark html::before,
 html.dark::before {
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(10, 132, 255, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(94, 92, 224, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 20%, rgba(40, 100, 220, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(20, 60, 160, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(10, 30, 80, 0.3) 0%, transparent 70%),
     var(--surface-solid);
 }
 
@@ -292,6 +293,19 @@ main.flex-1, main > .flex-1 { min-width: 0; }
   50% { transform: translateY(-4px); }
 }
 .animate-float { animation: float 3s ease-in-out infinite; }
+
+/* Orb animations */
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.03); }
+}
+.animate-orbFloat { animation: orbFloat 4s ease-in-out infinite; }
+
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+.animate-orbPulse { animation: orbPulse 5s ease-in-out infinite; }
 
 /* Touch feedback */
 @media (hover: none) and (pointer: coarse) {
