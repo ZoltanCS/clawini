@@ -286,11 +286,25 @@ export async function POST(req: NextRequest) {
             if (part.type === 'text') blocks.push({ text: part.text });
             else if (part.type === 'image_url') {
               const url: string = part.image_url?.url || '';
-              const m = url.match(/^data:(image\/\w+);base64,(.+)$/);
-              if (m) {
-                blocks.push({ image: { format: m[1].split('/')[1], source: { bytes: m[2] } } });
-              } else {
-                blocks.push({ text: `[image: ${url.slice(0, 100)}]` });
+              const dataMatch = url.match(/^data:(image\/[\w+]+);base64,(.+)$/);
+              if (dataMatch) {
+                const fmt = dataMatch[1].split('/')[1].replace('jpeg', 'jpeg');
+                blocks.push({ image: { format: fmt, source: { bytes: dataMatch[2] } } });
+              } else if (url.startsWith('http')) {
+                try {
+                  const imgRes = await fetch(url, { signal: AbortSignal.timeout(15000) });
+                  if (imgRes.ok) {
+                    const contentType = imgRes.headers.get('content-type') || 'image/png';
+                    const fmt = contentType.split('/')[1]?.split(';')[0] || 'png';
+                    const arrBuf = await imgRes.arrayBuffer();
+                    const b64 = Buffer.from(arrBuf).toString('base64');
+                    blocks.push({ image: { format: fmt, source: { bytes: b64 } } });
+                  } else {
+                    blocks.push({ text: `[kép nem elérhető: ${url.slice(0, 80)}]` });
+                  }
+                } catch {
+                  blocks.push({ text: `[kép letöltési hiba]` });
+                }
               }
             }
           }
