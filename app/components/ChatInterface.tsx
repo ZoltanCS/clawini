@@ -429,7 +429,12 @@ export default function ChatInterface() {
 
   const handleNewChat = useCallback(async () => {
     if (!user) { setIsAuthModalOpen(true); return; }
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
     setStreamingContent(''); setThinkingContent('');
+    setIsLoading(false);
     setEditingMessage(null);
     await createNewChat();
     setIsSidebarOpen(false);
@@ -437,8 +442,13 @@ export default function ChatInterface() {
   }, [user, createNewChat]);
 
   const handleSelectChat = useCallback((chatId: string) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
     setCurrentChatId(chatId);
     setStreamingContent(''); setThinkingContent('');
+    setIsLoading(false);
     setIsSidebarOpen(false);
     setError(null);
     setEditingMessage(null);

@@ -114,7 +114,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages]);
+  }, [messages, streamingContent, thinkingContent]);
 
   if (!chatId) return null;
 
