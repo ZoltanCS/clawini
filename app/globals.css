@@ -118,23 +118,23 @@ html.dark::after {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 45%;
+  height: 55%;
   z-index: 0;
   pointer-events: none;
   background:
-    /* Core intense blue */
-    radial-gradient(ellipse 60% 55% at 50% 90%, rgba(40, 110, 200, 0.85) 0%, rgba(30, 85, 170, 0.5) 35%, transparent 65%),
+    /* Core intense blue - brighter, larger */
+    radial-gradient(ellipse 70% 60% at 50% 88%, rgba(55, 140, 235, 0.9) 0%, rgba(40, 115, 210, 0.55) 35%, transparent 65%),
     /* White unmixed streaks */
-    radial-gradient(ellipse 18% 20% at 35% 85%, rgba(210, 230, 255, 0.4) 0%, transparent 70%),
-    radial-gradient(ellipse 12% 14% at 68% 92%, rgba(230, 240, 255, 0.3) 0%, transparent 60%),
-    radial-gradient(ellipse 8% 10% at 55% 78%, rgba(200, 225, 255, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse 20% 22% at 33% 82%, rgba(220, 238, 255, 0.45) 0%, transparent 70%),
+    radial-gradient(ellipse 14% 16% at 70% 90%, rgba(235, 245, 255, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 10% 12% at 52% 75%, rgba(210, 230, 255, 0.25) 0%, transparent 50%),
     /* Dark unmixed patches */
-    radial-gradient(ellipse 20% 18% at 60% 82%, rgba(0, 0, 0, 0.6) 0%, transparent 55%),
-    radial-gradient(ellipse 14% 12% at 28% 95%, rgba(0, 0, 0, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 18% 16% at 62% 80%, rgba(0, 0, 0, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 12% 10% at 26% 93%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
     /* Edge blue variations */
-    radial-gradient(ellipse 30% 25% at 75% 88%, rgba(50, 130, 220, 0.4) 0%, transparent 55%),
-    radial-gradient(ellipse 25% 20% at 25% 80%, rgba(35, 100, 190, 0.3) 0%, transparent 50%);
-  filter: blur(30px);
+    radial-gradient(ellipse 35% 28% at 78% 85%, rgba(65, 155, 240, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 28% 22% at 22% 78%, rgba(50, 130, 220, 0.35) 0%, transparent 50%);
+  filter: blur(28px);
 }
 
 ::-webkit-scrollbar { width: 3px; height: 3px; }
