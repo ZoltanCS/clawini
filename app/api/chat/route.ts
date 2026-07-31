@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
         modelId: modelId,
         messages: converseMessages,
         system: systemBlocks.length ? systemBlocks : undefined,
-        inferenceConfig: { maxTokens: 4096, temperature: 0.7, topP: 0.9 },
+        inferenceConfig: { maxTokens: 4096, temperature: 1 },
       };
       if (thinking) {
         converseBody.performanceConfig = { reasoning: 'enabled' };
