@@ -10,9 +10,9 @@ export interface NimModel {
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'moonshotai/kimi-k2.6',        label: 'Kimi K2.6',        publisher: 'Moonshot',  contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
-  { id: 'z-ai/glm-5.2',                label: 'GLM 5.2',          publisher: 'Zhipu AI',  contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
-  { id: 'minimaxai/minimax-m3',        label: 'MiniMax M3',       publisher: 'MiniMax',   contextWindow: 131072, supportsVision: true, supportsThinking: false, description: 'Kép leírás proxy' },
+  { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',  contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
+  { id: 'zai.glm-4.7',                 label: 'GLM 4.7',          publisher: 'Zhipu AI',  contextWindow: 204800, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
+  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',   contextWindow: 1000000, supportsVision: true, supportsThinking: false, description: 'Kép leírás proxy' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
@@ -63,8 +63,8 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const DEFAULT_NIM_MODEL_ID = 'moonshotai/kimi-k2.6';
-export const DEFAULT_GC_MODEL_ID = 'z-ai/glm-5.2';
+export const DEFAULT_NIM_MODEL_ID = 'moonshotai.kimi-k2.5';
+export const DEFAULT_GC_MODEL_ID = 'zai.glm-4.7';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {
   return models.find(m => m.id === id);

@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
+const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
+
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'moonshotai/kimi-k2.6':         ['z-ai/glm-5.2'],
-  'z-ai/glm-5.2':                 ['z-ai/glm-5.2'],
+  'moonshotai.kimi-k2.5':     ['zai.glm-4.7'],
+  'zai.glm-4.7':              ['zai.glm-4.7'],
 };
 
-const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
-const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5']);
+const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
 
@@ -149,7 +152,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, model, systemPrompt, webSearch, thinking } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
-    const modelId = model || 'moonshotai/kimi-k2.6';
+    const modelId = model || 'moonshotai.kimi-k2.5';
 
     // Tavily web search
     let webContext = '';
@@ -189,7 +192,7 @@ export async function POST(req: NextRequest) {
     });
     formattedMessages.unshift({ role: 'system', content: systemContent + webContext });
 
-    const apiKey = process.env.NVIDIA_NIM_API_KEY || process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.AWS_BEDROCK_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
@@ -209,7 +212,7 @@ export async function POST(req: NextRequest) {
         ];
 
         try {
-          const visionRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          const visionRes = await fetch(`${BEDROCK_BASE_URL}/chat/completions`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -270,8 +273,8 @@ export async function POST(req: NextRequest) {
         top_p: 0.9,
         frequency_penalty: 0.3,
       };
-      if (thinking) body.chat_template_kwargs = { thinking: true };
-      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      if (thinking) body.reasoning_effort = 'high';
+      const res = await fetch(`${BEDROCK_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -291,7 +294,7 @@ export async function POST(req: NextRequest) {
       if (res.status === 401 || res.status === 429) {
         let err = '';
         try { err = await res.text(); } catch {}
-        const message = res.status === 401 ? 'API key rejected - check NVIDIA_NIM_API_KEY' : 'Rate limited - try again later';
+        const message = res.status === 401 ? 'API key rejected - check AWS_BEDROCK_API_KEY' : 'Rate limited - try again later';
         return NextResponse.json({ error: message, details: err }, { status: res.status });
       }
 
