@@ -112,6 +112,7 @@ html.dark::before {
 }
 
 /* Tempera paint blob - sits at the bottom, behind everything */
+/* DEFAULT STATE: compact blob at bottom */
 html.dark::after {
   content: '';
   position: fixed;
@@ -135,6 +136,16 @@ html.dark::after {
     radial-gradient(ellipse 35% 28% at 78% 85%, rgba(65, 155, 240, 0.45) 0%, transparent 55%),
     radial-gradient(ellipse 28% 22% at 22% 78%, rgba(50, 130, 220, 0.35) 0%, transparent 50%);
   filter: blur(28px);
+  transition: height 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* EXPANDED STATE: blob spreads across entire screen */
+html.dark.chat-active::after {
+  height: 100%;
+  filter: blur(50px);
+  opacity: 0.7;
 }
 
 ::-webkit-scrollbar { width: 3px; height: 3px; }

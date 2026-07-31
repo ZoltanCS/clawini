@@ -154,6 +154,16 @@ export default function ChatInterface() {
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const { chats, currentChat, currentChatId, setCurrentChatId, createNewChat, deleteChat, updateChatTitle, addMessage, uploadImage } = useSupabaseChat(user);
 
+  // Toggle tempera blob expansion when chat is active
+  useEffect(() => {
+    const root = document.documentElement;
+    if (currentChatId) {
+      root.classList.add('chat-active');
+    } else {
+      root.classList.remove('chat-active');
+    }
+  }, [currentChatId]);
+
   const currentModel = useMemo(() => getModelById(models, selectedModelId), [models, selectedModelId]);
   const modelLabel = currentModel?.label || selectedModelId.split('/').pop() || selectedModelId;
   const contextWindow = currentModel?.contextWindow || 131072;
