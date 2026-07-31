@@ -419,9 +419,13 @@ export default function ChatInterface() {
   }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
-    if (!currentChatId) return null;
-    return await uploadImage(file, currentChatId);
-  }, [currentChatId, uploadImage]);
+    let chatId = currentChatId;
+    if (!chatId) {
+      chatId = await createNewChat();
+      if (!chatId) return null;
+    }
+    return await uploadImage(file, chatId);
+  }, [currentChatId, uploadImage, createNewChat]);
 
   const handleNewChat = useCallback(async () => {
     if (!user) { setIsAuthModalOpen(true); return; }
