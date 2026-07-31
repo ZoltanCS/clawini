@@ -676,7 +676,7 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex overflow-hidden" style={{ height: 'var(--visual-height, 100dvh)' }}>
+    <div className="flex overflow-hidden relative z-10" style={{ height: 'var(--visual-height, 100dvh)' }}>
       <Sidebar
         isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}
         chats={chats} currentChatId={currentChatId} onSelectChat={handleSelectChat}

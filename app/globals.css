@@ -42,38 +42,38 @@
 }
 
 .dark {
-  /* Deep dark with blue light from below */
-  --surface: rgba(8, 12, 24, 0.55);
-  --surface-solid: #050810;
-  --surface-hover: rgba(15, 22, 45, 0.5);
-  --surface-elevated: rgba(12, 18, 35, 0.7);
-  --surface-deep: rgba(8, 12, 24, 0.6);
-  --border: rgba(120, 160, 220, 0.1);
-  --border-subtle: rgba(120, 160, 220, 0.06);
-  --border-glass: linear-gradient(135deg, rgba(150,190,255,0.12) 0%, rgba(150,190,255,0.02) 50%, rgba(150,190,255,0.08) 100%);
-  --fg: #e4e8f0;
-  --fg-secondary: #8899b8;
-  --fg-muted: #4a5a78;
+  /* Pure black base with glass over it */
+  --surface: rgba(0, 0, 0, 0.4);
+  --surface-solid: #000000;
+  --surface-hover: rgba(20, 20, 20, 0.5);
+  --surface-elevated: rgba(15, 15, 15, 0.7);
+  --surface-deep: rgba(5, 5, 5, 0.6);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-glass: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.06) 100%);
+  --fg: #e8ecf2;
+  --fg-secondary: #8a95a8;
+  --fg-muted: #4a5568;
   --accent: #5ba3f5;
   --accent-hover: #7db8ff;
   --accent-glass: rgba(91, 163, 245, 0.14);
   --bubble-user: rgba(91, 163, 245, 0.1);
-  --bubble-ai: rgba(10, 15, 30, 0.35);
+  --bubble-ai: rgba(255, 255, 255, 0.03);
   --danger: #ff453a;
   --success: #30d158;
   --warning: #ff9f0a;
 
-  /* Frosted glass */
-  --glass-bg: rgba(10, 15, 30, 0.45);
-  --glass-blur: 28px;
-  --glass-border: 1px solid rgba(120, 160, 220, 0.08);
-  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  --glass-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
-  --glass-highlight: linear-gradient(135deg, rgba(150,190,255,0.06) 0%, transparent 60%);
+  /* Frosted glass over black */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-blur: 24px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --glass-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
   --glass-refraction: none;
 
-  --input-bg: rgba(20, 30, 55, 0.45);
-  --input-bg-focus: rgba(30, 45, 75, 0.5);
+  --input-bg: rgba(255, 255, 255, 0.04);
+  --input-bg-focus: rgba(255, 255, 255, 0.07);
 }
 
 * {
@@ -108,18 +108,33 @@ html::before {
 
 .dark html::before,
 html.dark::before {
+  background: #000000;
+}
+
+/* Tempera paint blob - sits at the bottom, behind everything */
+html.dark::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  z-index: 0;
+  pointer-events: none;
   background:
-    /* Main blue tempera blob - bottom center */
-    radial-gradient(ellipse 70% 35% at 50% 100%, rgba(45, 120, 210, 0.7) 0%, rgba(30, 90, 180, 0.4) 40%, transparent 70%),
+    /* Core intense blue */
+    radial-gradient(ellipse 60% 55% at 50% 90%, rgba(40, 110, 200, 0.85) 0%, rgba(30, 85, 170, 0.5) 35%, transparent 65%),
     /* White unmixed streaks */
-    radial-gradient(ellipse 20% 12% at 35% 92%, rgba(200, 220, 255, 0.35) 0%, transparent 70%),
-    radial-gradient(ellipse 15% 8% at 65% 96%, rgba(220, 235, 255, 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 18% 20% at 35% 85%, rgba(210, 230, 255, 0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 12% 14% at 68% 92%, rgba(230, 240, 255, 0.3) 0%, transparent 60%),
+    radial-gradient(ellipse 8% 10% at 55% 78%, rgba(200, 225, 255, 0.2) 0%, transparent 50%),
     /* Dark unmixed patches */
-    radial-gradient(ellipse 25% 15% at 55% 88%, rgba(10, 25, 60, 0.5) 0%, transparent 60%),
-    radial-gradient(ellipse 12% 10% at 30% 98%, rgba(5, 15, 40, 0.4) 0%, transparent 50%),
-    /* Slight blue variation */
-    radial-gradient(ellipse 40% 20% at 45% 95%, rgba(60, 140, 230, 0.3) 0%, transparent 60%),
-    var(--surface-solid);
+    radial-gradient(ellipse 20% 18% at 60% 82%, rgba(0, 0, 0, 0.6) 0%, transparent 55%),
+    radial-gradient(ellipse 14% 12% at 28% 95%, rgba(0, 0, 0, 0.4) 0%, transparent 50%),
+    /* Edge blue variations */
+    radial-gradient(ellipse 30% 25% at 75% 88%, rgba(50, 130, 220, 0.4) 0%, transparent 55%),
+    radial-gradient(ellipse 25% 20% at 25% 80%, rgba(35, 100, 190, 0.3) 0%, transparent 50%);
+  filter: blur(30px);
 }
 
 ::-webkit-scrollbar { width: 3px; height: 3px; }
