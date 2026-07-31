@@ -112,10 +112,15 @@ export default function ChatInput({
       for (let i = 0; i < imageFiles.length; i++) {
         const file = imageFiles[i];
         setUploadProgress(Math.round((i / imageFiles.length) * 100));
-        const compressed = await imageCompression(file, {
-          maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true,
-        });
-        compressedFiles.push(compressed);
+        try {
+          const compressed = await imageCompression(file, {
+            maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true,
+          });
+          compressedFiles.push(compressed);
+        } catch {
+          // Fallback: use original file if compression fails
+          compressedFiles.push(file);
+        }
       }
       setUploadProgress(100);
 
