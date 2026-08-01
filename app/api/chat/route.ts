@@ -367,14 +367,48 @@ export async function POST(req: NextRequest) {
       if (!converseRes.ok) {
         let err = '';
         try { err = await converseRes.text(); } catch {}
-        console.error('[Converse] Error response:', converseRes.status, err);
         return NextResponse.json({ error: `Bedrock API error ${converseRes.status}`, details: err }, { status: converseRes.status });
       }
-      
-      console.log('[Converse] Response OK, starting stream parse...');
 
-      // Transform Converse Stream binary event format → OpenAI SSE
-      const stream = new ReadableStream({
+      // DEBUG MODE: Return raw response info instead of streaming
+      const debugReader = converseRes.body?.getReader();
+      if (!debugReader) {
+        return NextResponse.json({ error: 'No response body' }, { status: 500 });
+      }
+      
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      while (totalBytes < 5000) { // Limit to 5KB for debug
+        const { done, value } = await debugReader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          totalBytes += value.length;
+        }
+      }
+      
+      const allBytes = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        allBytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      const hexPreview = Array.from(allBytes.slice(0, 200)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+      let textPreview = '';
+      try {
+        textPreview = new TextDecoder().decode(allBytes).slice(0, 1000);
+      } catch {}
+      
+      return NextResponse.json({
+        debug: true,
+        message: 'Nova raw response',
+        totalBytes,
+        hexPreview,
+        textPreview,
+      });
+
+      /* ORIGINAL STREAMING CODE - COMMENTED FOR DEBUG
         async start(controller) {
           const encoder = new TextEncoder();
           let eventCount = 0;
@@ -463,6 +497,7 @@ export async function POST(req: NextRequest) {
           'X-Accel-Buffering': 'no',
         },
       });
+      END OF DEBUG COMMENT */
     }
 
     // --- OPEN-WEIGHT MODELS: bedrock-mantle chat/completions ---
