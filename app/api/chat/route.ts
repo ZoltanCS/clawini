@@ -340,9 +340,11 @@ export async function POST(req: NextRequest) {
         converseBody.performanceConfig = { reasoning: 'enabled' };
       }
 
-      const endpoint = `https://bedrock-runtime.${CLAUDE_REGION}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse-stream`;
+      // Region selection: Nova uses us-east-1, Claude uses eu-central-1
+      const region = isNovaModel(modelId) ? 'us-east-1' : CLAUDE_REGION;
+      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse-stream`;
       const bodyStr = JSON.stringify(converseBody);
-      const headers = signAwsRequest('POST', endpoint, bodyStr, CLAUDE_REGION, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
+      const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
 
       const converseRes = await fetch(endpoint, {
         method: 'POST',
