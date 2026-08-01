@@ -45,7 +45,9 @@ export function signAwsRequest(
   const canonicalHeaders = signedHeaderKeys.map(k => `${k}:${headers[k]}\n`).join('');
   const payloadHash = sha256(body);
 
-  // Use URL.pathname - it encodes consistently with how fetch() will encode
+  // Extract path from URL - it's already encoded by URL constructor if needed
+  // But if caller pre-encoded, u.pathname will have it as-is (not double-encoded)
+  // We need to use the raw pathname from URL which represents how the request will be sent
   const canonicalRequest = [
     method,
     u.pathname,
