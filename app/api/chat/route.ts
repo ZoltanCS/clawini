@@ -357,8 +357,7 @@ export async function POST(req: NextRequest) {
       const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodedModelId}/converse-stream`;
       const bodyStr = JSON.stringify(converseBody);
       
-      // Pass the pre-encoded path directly to signing - don't let URL re-parse it
-      const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN, true);
+      const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
 
       const converseRes = await fetch(endpoint, {
         method: 'POST',
