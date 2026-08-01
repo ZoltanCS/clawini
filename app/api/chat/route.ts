@@ -340,10 +340,8 @@ export async function POST(req: NextRequest) {
       // Thinking config: different for Nova vs Claude
       if (thinking) {
         if (isNovaModel(modelId)) {
-          converseBody.additionalModelRequestFields = {
-            reasoningConfig: { type: 'enabled', maxReasoningEffort: 'low' }
-          };
-          converseBody.performanceConfig = { latency: 'standard' };
+          // Nova Lite 1.x (nova-lite-v1) does not support reasoningConfig - skip it
+          // (Nova 2 models like nova-2-lite-v1 support: reasoningConfig: { type: 'enabled', maxReasoningEffort: 'low' })
         } else {
           converseBody.performanceConfig = { reasoning: 'enabled' };
         }
