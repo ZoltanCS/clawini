@@ -8,36 +8,35 @@ interface WelcomeScreenProps {
 }
 
 const suggestions = [
-  { title: 'Kreatív írás', description: 'Írj egy történetet' },
-  { title: 'Kódolás', description: 'Segítség programozásban' },
-  { title: 'Ötletelés', description: 'Brainstorm ötletek' },
-  { title: 'Tanulás', description: 'Magyarázz el egy témát' },
+  { title: 'Szülinapi meglepetés', description: 'Adj ötleteket egy egyedi szülinapi bulihoz' },
+  { title: 'Játékest tervezés', description: 'Tervezz egy olcsó és szórakoztató játékestét' },
+  { title: 'Reggeli rutin', description: 'Készíts egy produktív reggeli rutint' },
+  { title: 'Utazás tippek', description: 'Adj tippeket olcsó európai utazáshoz' },
+  { title: 'Főzés segítség', description: 'Adj egy gyors vacsora receptet' },
+  { title: 'Produktivitás', description: 'Hogyan legyek produktívabb a munkában' },
 ];
 
 export default function WelcomeScreen({ onSuggestionClick, currentChat }: WelcomeScreenProps) {
   if (currentChat) return null;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-end px-4 pb-6 overflow-y-auto">
-      <h1 className="text-xl font-medium text-center mb-6 animate-slideUpFade" style={{ color: 'var(--fg)' }}>
-        Miben segíthetek?
-      </h1>
-
-      <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm stagger-children">
+    <div className="flex-1 flex flex-col justify-end px-4 pb-4 overflow-hidden">
+      {/* Scrollable card strip at the bottom */}
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
         {suggestions.map((suggestion, index) => (
           <button
             key={index}
             onClick={() => onSuggestionClick(suggestion.description)}
-            className="flex flex-col gap-1 p-3.5 rounded-2xl transition-all duration-200 text-left hover:scale-[1.02] active:scale-[0.98]"
+            className="flex-shrink-0 snap-start w-[160px] p-3.5 rounded-2xl text-left transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(20px) saturate(150%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(150%)',
-              border: '1px solid var(--border-subtle)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
             }}
           >
-            <div className="font-medium text-[13px]" style={{ color: 'var(--fg)' }}>{suggestion.title}</div>
-            <div className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{suggestion.description}</div>
+            <div className="text-[12px] font-medium leading-snug mb-1" style={{ color: 'var(--fg)' }}>{suggestion.title}</div>
+            <div className="text-[11px] leading-snug" style={{ color: 'var(--fg-muted)' }}>{suggestion.description}</div>
           </button>
         ))}
       </div>
