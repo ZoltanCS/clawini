@@ -379,6 +379,7 @@ export async function POST(req: NextRequest) {
           const encoder = new TextEncoder();
           let eventCount = 0;
           let textChunks = 0;
+          let allEvents: string[] = [];
           try {
             const reader = converseRes.body!.getReader();
             let buffer = Buffer.alloc(0);
@@ -386,7 +387,12 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
-                console.log(`[Converse] Stream done. Events: ${eventCount}, TextChunks: ${textChunks}`);
+                // Debug: if no text chunks, send all events to client
+                if (textChunks === 0 && allEvents.length > 0) {
+                  const debugMsg = `[DEBUG Nova] No text found. Events received:\n${allEvents.join('\n')}`;
+                  const debugChunk = JSON.stringify({ choices: [{ delta: { content: debugMsg } }] });
+                  controller.enqueue(encoder.encode(`data: ${debugChunk}\n\n`));
+                }
                 break;
               }
 
@@ -408,9 +414,7 @@ export async function POST(req: NextRequest) {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
                   eventCount++;
-                  
-                  // Debug: log the event structure
-                  console.log('[Converse Stream] Event:', JSON.stringify(event).slice(0, 500));
+                  allEvents.push(JSON.stringify(event).slice(0, 300));
 
                   if (event.delta?.text) {
                     textChunks++;
@@ -436,14 +440,13 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
                   }
                 } catch (parseErr) {
-                  console.error('[Converse] Parse error:', parseErr);
+                  // skip unparseable
                 }
               }
             }
 
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           } catch (e: any) {
-            console.error('[Converse] Stream error:', e.message);
             const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] });
             controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
