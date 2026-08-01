@@ -449,7 +449,7 @@ export default function ChatInterface() {
     return await uploadImage(file, chatId);
   }, [currentChatId, uploadImage, createNewChat]);
 
-  const handleNewChat = useCallback(async () => {
+  const handleNewChat = useCallback(() => {
     if (!user) { setIsAuthModalOpen(true); return; }
     if (abortRef.current) {
       abortRef.current.abort();
@@ -458,10 +458,10 @@ export default function ChatInterface() {
     setStreamingContent(''); setThinkingContent('');
     setIsLoading(false);
     setEditingMessage(null);
-    await createNewChat();
+    setCurrentChatId(null);
     setIsSidebarOpen(false);
     gcTriggeredRef.current = false;
-  }, [user, createNewChat]);
+  }, [user, setCurrentChatId]);
 
   const handleSelectChat = useCallback((chatId: string) => {
     if (abortRef.current) {

@@ -3,11 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Clawini',
-  description: 'AI chat app powered by NVIDIA NIM',
+  description: 'AI chat asszisztens',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Clawini',
   },
   formatDetection: {
@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#ffffff',
+  themeColor: '#000000',
 };
 
 export default function RootLayout({
@@ -31,7 +31,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="hu" className="overscroll-none">
-      <body className="antialiased overscroll-none touch-manipulation">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+      </head>
+      <body className="antialiased overscroll-none touch-manipulation">
+        {children}
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
+      </body>
     </html>
   );
 }

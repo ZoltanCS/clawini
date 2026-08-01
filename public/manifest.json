@@ -1,11 +1,11 @@
 {
-  "name": "Gemini Chat",
-  "short_name": "Gemini",
-  "description": "Egy egyszerű, intuitív chatbot a Gemini Flash Lite modellel",
+  "name": "Clawini",
+  "short_name": "Clawini",
+  "description": "AI chat asszisztens",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4285f4",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {
