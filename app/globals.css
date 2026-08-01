@@ -116,36 +116,61 @@ html.dark::before {
 html.dark::after {
   content: '';
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
-  height: 55%;
+  height: 100vh;
   z-index: 0;
   pointer-events: none;
   background:
     /* Core intense blue - brighter, larger */
-    radial-gradient(ellipse 70% 60% at 50% 88%, rgba(55, 140, 235, 0.9) 0%, rgba(40, 115, 210, 0.55) 35%, transparent 65%),
+    radial-gradient(ellipse 70% 35% at 50% 92%, rgba(55, 140, 235, 0.9) 0%, rgba(40, 115, 210, 0.55) 35%, transparent 65%),
     /* White unmixed streaks */
-    radial-gradient(ellipse 20% 22% at 33% 82%, rgba(220, 238, 255, 0.45) 0%, transparent 70%),
-    radial-gradient(ellipse 14% 16% at 70% 90%, rgba(235, 245, 255, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 10% 12% at 52% 75%, rgba(210, 230, 255, 0.25) 0%, transparent 50%),
+    radial-gradient(ellipse 20% 12% at 33% 86%, rgba(220, 238, 255, 0.45) 0%, transparent 70%),
+    radial-gradient(ellipse 14% 9% at 70% 94%, rgba(235, 245, 255, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 10% 7% at 52% 80%, rgba(210, 230, 255, 0.25) 0%, transparent 50%),
     /* Dark unmixed patches */
-    radial-gradient(ellipse 18% 16% at 62% 80%, rgba(0, 0, 0, 0.5) 0%, transparent 55%),
-    radial-gradient(ellipse 12% 10% at 26% 93%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 18% 10% at 62% 84%, rgba(0, 0, 0, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 12% 6% at 26% 96%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
     /* Edge blue variations */
-    radial-gradient(ellipse 35% 28% at 78% 85%, rgba(65, 155, 240, 0.45) 0%, transparent 55%),
-    radial-gradient(ellipse 28% 22% at 22% 78%, rgba(50, 130, 220, 0.35) 0%, transparent 50%);
+    radial-gradient(ellipse 35% 16% at 78% 89%, rgba(65, 155, 240, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 28% 13% at 22% 82%, rgba(50, 130, 220, 0.35) 0%, transparent 50%);
   filter: blur(28px);
-  transition: height 1.2s cubic-bezier(0.4, 0, 0.2, 1),
-              filter 1.2s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1) translateY(0);
+  transform-origin: 50% 100%;
 }
 
-/* EXPANDED STATE: blob spreads across entire screen */
+/* EXPANDED STATE: blob explodes upward and fills screen */
 html.dark.chat-active::after {
-  height: 100%;
-  filter: blur(50px);
-  opacity: 0.7;
+  animation: temperaExplode 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes temperaExplode {
+  0% {
+    transform: scale(1) translateY(0);
+    filter: blur(28px);
+    opacity: 1;
+  }
+  25% {
+    transform: scale(1.4) translateY(-10%);
+    filter: blur(38px);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(2.0) translateY(-20%);
+    filter: blur(55px);
+    opacity: 0.65;
+  }
+  75% {
+    transform: scale(2.4) translateY(-25%);
+    filter: blur(70px);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2.6) translateY(-28%);
+    filter: blur(80px);
+    opacity: 0.4;
+  }
 }
 
 ::-webkit-scrollbar { width: 3px; height: 3px; }
