@@ -27,9 +27,9 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 
 const MODEL_SHEET_OPTIONS = [
-  { tier: 'normal', label: 'Normál', id: 'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0' },
-  { tier: 'smart',  label: 'Okos',   id: 'eu.anthropic.claude-sonnet-4-6' },
-  { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
+  { tier: 'fast',   label: 'Fast',   id: 'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0' },
+  { tier: 'normal', label: 'Normal', id: 'eu.anthropic.claude-sonnet-4-6' },
+  { tier: 'smart',  label: 'Smart',  id: 'global.anthropic.claude-opus-4-6-v1' },
 ] as const;
 
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
@@ -861,47 +861,31 @@ export default function ChatInterface() {
         </div>
       </main>
 
-      {/* Model Sheet */}
+      {/* Model Dropdown */}
       {isModelSheetOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="fixed inset-0 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }} />
-          <div className="relative w-full sm:max-w-xs sm:rounded-2xl sm:mx-4 rounded-t-2xl animate-slideUp" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(150%)', WebkitBackdropFilter: 'blur(24px) saturate(150%)', border: '1px solid var(--border-subtle)', boxShadow: '0 -4px 32px rgba(0,0,0,0.3)' }}>
-
-            <div className="px-4 py-3 space-y-0.5">
-              {MODEL_SHEET_OPTIONS.map(opt => {
-                const selected = opt.id === selectedModelId;
-                return (
-                  <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors duration-100"
-                    style={{ background: 'transparent' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <span className="text-sm" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
-                      {opt.label}
-                    </span>
-                    {selected && (
-                      <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
-
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <span className="text-sm" style={{ color: 'var(--fg-secondary)' }}>Gondolkodas</span>
-                <button
-                  onClick={() => { setThinking(t => { const v = !t; localStorage.setItem('thinking', String(v)); return v; }); }}
-                  className="flex items-center gap-1.5"
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
+          <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[140px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+            {MODEL_SHEET_OPTIONS.map(opt => {
+              const selected = opt.id === selectedModelId;
+              return (
+                <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
+                  className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+                  style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div className="w-2 h-2 rounded-full transition-colors duration-200" style={{ background: thinking ? 'var(--accent)' : 'var(--border-subtle)' }} />
-                  <span className="text-xs" style={{ color: thinking ? 'var(--accent)' : 'var(--fg-muted)' }}>{thinking ? 'be' : 'ki'}</span>
+                  <span>{opt.label}</span>
+                  {selected && (
+                    <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
                 </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        </div>
+        </>
       )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
