@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Message } from '@/app/types';
 
 interface MessageBubbleProps {
@@ -217,7 +217,7 @@ function formatInlineMarkdown(text: string): string {
   return html;
 }
 
-export default function MessageBubble({ message, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', highlighted }: MessageBubbleProps) {
+function MessageBubbleInner({ message, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', highlighted }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -229,6 +229,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
   const cleanContent = thinkingMatch?.[2] ?? message.content;
 
   const segments = useMemo(() => parseContent(cleanContent || ''), [cleanContent]);
+  const formattedSegments = useMemo(() => segments.map(s => s.type === 'text' ? formatInlineMarkdown(s.content) : null), [segments]);
   const hasHtml = useMemo(() => segments.some(s => s.type === 'code' && s.language === 'html'), [segments]);
 
   const imageUrls: string[] = (() => {
@@ -304,6 +305,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
                   <img
                     src={url}
                     alt={`Uploaded ${i + 1}`}
+                    loading="lazy"
                     className="w-full max-h-64 object-cover cursor-pointer transition-all duration-200 hover:scale-105"
                     onClick={() => window.open(url, '_blank')}
                   />
@@ -318,7 +320,7 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
                 segment.type === 'code' ? (
                   <CodeBlock key={i} code={segment.content} language={segment.language} />
                 ) : (
-                  <TextContent key={i} html={formatInlineMarkdown(segment.content)} />
+                  <TextContent key={i} html={formattedSegments[i]!} />
                 )
               )}
             </div>
@@ -417,3 +419,13 @@ export default function MessageBubble({ message, onRegenerate, onBranch, onEdit,
     </>
   );
 }
+
+const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.highlighted === next.highlighted
+  );
+});
+
+export default MessageBubble;

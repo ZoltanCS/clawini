@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, ChangeEvent, DragEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, ChangeEvent, DragEvent } from 'react';
 import imageCompression from 'browser-image-compression';
 
 interface ChatInputProps {
@@ -65,12 +65,26 @@ export default function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
 
+  const resizeTextarea = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+  }, []);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    resizeTextarea();
+  }, [resizeTextarea]);
+
   useEffect(() => {
     if (editValue !== undefined) {
       setInput(editValue);
       textareaRef.current?.focus();
+      // Defer resize to next frame after state update
+      requestAnimationFrame(resizeTextarea);
     }
-  }, [editValue]);
+  }, [editValue, resizeTextarea]);
 
   useEffect(() => {
     if (editImageUrls && editImageUrls.length > 0) {
@@ -174,13 +188,6 @@ export default function ChatInput({
       handleSubmit(e);
     }
   };
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
-  }, [input]);
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -383,7 +390,7 @@ export default function ChatInput({
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={1}

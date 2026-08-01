@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Message } from '@/app/types';
 import MessageBubble from './MessageBubble';
 import { supabase } from '@/app/lib/supabase';
@@ -24,7 +24,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
     <div className="flex justify-start mb-4 animate-messageSlideIn">
       <div className="px-4 py-3">
         <div className="flex items-center gap-2 mb-2.5">
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center animate-float">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
@@ -49,6 +49,11 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
   const prevChatId = useRef<string | null>(null);
   const prevMessageCount = useRef(0);
   const isNearBottom = useRef(true);
+
+  const handleRegenerate = useCallback((id: string) => onRegenerate?.(id), [onRegenerate]);
+  const handleBranch = useCallback((id: string) => onBranch?.(id), [onBranch]);
+  const handleEdit = useCallback((id: string) => onEdit?.(id), [onEdit]);
+  const handleDelete = useCallback((id: string) => onDelete?.(id), [onDelete]);
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
@@ -108,8 +113,18 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     prevMessageCount.current = messages.length;
   }, [messages]);
 
+  const prevStreamingRef = useRef<string | undefined>(streamingContent);
+
   useEffect(() => {
     if (!isNearBottom.current) return;
+    // On new messages, scroll immediately
+    if (messages.length !== prevMessageCount.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      return;
+    }
+    // On streaming, only scroll if content actually changed (debounced)
+    if (streamingContent === prevStreamingRef.current && thinkingContent === undefined) return;
+    prevStreamingRef.current = streamingContent;
     const el = bottomRef.current;
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -132,13 +147,13 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       <div className="w-full max-w-3xl mx-auto">
         {messages.map((message, index) => (
-          <div key={message.id} className="animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>
+          <div key={message.id} className="message-item animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>
             <MessageBubble 
               message={message}
-              onRegenerate={() => onRegenerate?.(message.id)}
-              onBranch={() => onBranch?.(message.id)}
-              onEdit={() => onEdit?.(message.id)}
-              onDelete={() => onDelete?.(message.id)}
+              onRegenerate={() => handleRegenerate(message.id)}
+              onBranch={() => handleBranch(message.id)}
+              onEdit={() => handleEdit(message.id)}
+              onDelete={() => handleDelete(message.id)}
               modelLabel={modelLabel}
             />
           </div>
@@ -157,7 +172,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
           <div className="flex justify-start mb-4">
             <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl bg-transparent">
               <div className="flex items-center gap-2 mb-2.5">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center animate-float">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                   <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>

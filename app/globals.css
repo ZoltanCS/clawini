@@ -195,6 +195,8 @@ main.flex-1, main > .flex-1 { min-width: 0; }
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border: var(--glass-border);
   box-shadow: var(--glass-shadow);
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .glass-elevated {
@@ -203,6 +205,8 @@ main.flex-1, main > .flex-1 { min-width: 0; }
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(200%);
   border: var(--glass-border);
   box-shadow: var(--glass-shadow-lg);
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .glass-deep {
@@ -312,6 +316,17 @@ main.flex-1, main > .flex-1 { min-width: 0; }
   transform: translateY(-1px);
 }
 
+/* Message item layout isolation */
+.message-item {
+  contain: content;
+}
+
+/* GPU-accelerated scrollable containers */
+.overflow-y-auto,
+.overflow-x-auto {
+  transform: translateZ(0);
+}
+
 /* Stagger children animation */
 .stagger-children > * {
   opacity: 0;
@@ -322,25 +337,25 @@ main.flex-1, main > .flex-1 { min-width: 0; }
 .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
 .stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
 
-/* Float animation for logo */
+/* Float animation for logo - disabled for perf, use static transform */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
-.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-float { /* animation removed - burns battery on mobile */ }
 
-/* Orb animations */
+/* Orb animations - disabled for mobile perf */
 @keyframes orbFloat {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-8px) scale(1.03); }
 }
-.animate-orbFloat { animation: orbFloat 4s ease-in-out infinite; }
+.animate-orbFloat { /* animation removed - burns battery on mobile */ }
 
 @keyframes orbPulse {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.1); opacity: 0.8; }
 }
-.animate-orbPulse { animation: orbPulse 5s ease-in-out infinite; }
+.animate-orbPulse { /* animation removed - burns battery on mobile */ }
 
 /* Touch feedback */
 @media (hover: none) and (pointer: coarse) {
@@ -348,6 +363,22 @@ main.flex-1, main > .flex-1 { min-width: 0; }
     background-color: var(--surface-hover);
     transform: scale(0.97);
     transition: transform 0.1s ease-out;
+  }
+}
+
+/* Reduce expensive backdrop-filter blur on mobile/touch devices */
+@media (hover: none) {
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+  }
+  .glass-elevated {
+    backdrop-filter: blur(12px) saturate(200%);
+    -webkit-backdrop-filter: blur(12px) saturate(200%);
+  }
+  .glass-deep {
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
   }
 }
 

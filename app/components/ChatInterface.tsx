@@ -26,6 +26,12 @@ const MODELS_CACHE_AGE = 1000 * 60 * 30;
 const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 
+const MODEL_SHEET_OPTIONS = [
+  { tier: 'normal', label: 'Normal', id: 'moonshotai.kimi-k2.5' },
+  { tier: 'smart',  label: 'Okos',   id: 'eu.anthropic.claude-sonnet-4-6' },
+  { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
+] as const;
+
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
   let md = `# ${title}\n\n`;
   for (const msg of messages) {
@@ -862,11 +868,7 @@ export default function ChatInterface() {
           <div className="relative w-full sm:max-w-xs sm:rounded-2xl sm:mx-4 rounded-t-2xl animate-slideUp" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(150%)', WebkitBackdropFilter: 'blur(24px) saturate(150%)', border: '1px solid var(--border-subtle)', boxShadow: '0 -4px 32px rgba(0,0,0,0.3)' }}>
 
             <div className="px-4 py-3 space-y-0.5">
-              {[
-                { tier: 'normal', label: 'Normal', id: 'moonshotai.kimi-k2.5' },
-                { tier: 'smart',  label: 'Okos',   id: 'eu.anthropic.claude-sonnet-4-6' },
-                { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
-              ].map(opt => {
+              {MODEL_SHEET_OPTIONS.map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (
                   <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
