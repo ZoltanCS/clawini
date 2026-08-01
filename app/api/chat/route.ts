@@ -375,6 +375,7 @@ export async function POST(req: NextRequest) {
           const encoder = new TextEncoder();
           let textChunks = 0;
           let allEvents: string[] = [];
+          let rawBytesHex: string[] = [];
           try {
             const reader = converseRes.body!.getReader();
             let buffer = Buffer.alloc(0);
@@ -382,13 +383,18 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
-                // Debug: if no text chunks, send all events to client
-                if (textChunks === 0 && allEvents.length > 0) {
-                  const debugMsg = `[DEBUG Nova] No text found. Events received:\n${allEvents.join('\n')}`;
+                // Debug: if no text chunks, send debug info to client
+                if (textChunks === 0) {
+                  const debugMsg = `[DEBUG Nova]\nRaw bytes (first 500): ${rawBytesHex.join('')}\n\nEvents parsed: ${allEvents.length}\n${allEvents.join('\n')}`;
                   const debugChunk = JSON.stringify({ choices: [{ delta: { content: debugMsg } }] });
                   controller.enqueue(encoder.encode(`data: ${debugChunk}\n\n`));
                 }
                 break;
+              }
+
+              // Collect raw bytes for debug
+              if (rawBytesHex.length < 500) {
+                rawBytesHex.push(...Array.from(value).slice(0, 500 - rawBytesHex.length).map(b => b.toString(16).padStart(2, '0') + ' '));
               }
 
               buffer = Buffer.concat([buffer, Buffer.from(value)]);
@@ -408,7 +414,7 @@ export async function POST(req: NextRequest) {
                 try {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
-                  allEvents.push(JSON.stringify(event).slice(0, 300));
+                  allEvents.push(JSON.stringify(event).slice(0, 500));
 
                   if (event.delta?.text) {
                     textChunks++;
