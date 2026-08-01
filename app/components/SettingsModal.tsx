@@ -34,6 +34,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const [defaultModel, setDefaultModel] = useState(DEFAULT_MODEL_ID);
   const [showTokenUsage, setShowTokenUsage] = useState(false);
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json' | 'clipboard'>('markdown');
+  const [memories, setMemories] = useState<{id: string; content: string}[]>([]);
+  const [quickTopics, setQuickTopics] = useState<{id: string; topic: string}[]>([]);
+  const [newTopic, setNewTopic] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -73,6 +76,35 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     }
   };
 
+  // Load memories and topics when memory tab opens
+  useEffect(() => {
+    if (isOpen && activeTab === 'memory' && user) {
+      supabase.from('memories').select('id, content').eq('user_id', user.id).order('created_at', { ascending: false }).then(({ data }) => {
+        if (data) setMemories(data);
+      });
+      supabase.from('quick_topics').select('id, topic').eq('user_id', user.id).order('created_at', { ascending: false }).then(({ data }) => {
+        if (data) setQuickTopics(data);
+      });
+    }
+  }, [isOpen, activeTab, user]);
+
+  const handleDeleteMemory = async (id: string) => {
+    await supabase.from('memories').delete().eq('id', id);
+    setMemories(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleDeleteTopic = async (id: string) => {
+    await supabase.from('quick_topics').delete().eq('id', id);
+    setQuickTopics(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleAddTopic = async () => {
+    if (!newTopic.trim() || !user) return;
+    const { data } = await supabase.from('quick_topics').insert({ user_id: user.id, topic: newTopic.trim() }).select().single();
+    if (data) setQuickTopics(prev => [data, ...prev]);
+    setNewTopic('');
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -107,6 +139,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const tabs = [
     { id: 'general', label: 'Általános', icon: '\u2699' },
     { id: 'prompt', label: 'AI Prompt', icon: '\uD83E\uDDE0' },
+    { id: 'memory', label: 'Memória', icon: '\uD83E\uDDE0' },
     { id: 'account', label: 'Fiók', icon: '\uD83D\uDC64' },
     { id: 'appearance', label: 'Megjelenés', icon: '\uD83C\uDFA8' },
   ];
@@ -292,6 +325,59 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'memory' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--fg-secondary)' }}>Quick kártya témák</label>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={newTopic}
+                      onChange={(e) => setNewTopic(e.target.value)}
+                      placeholder="Pl. fitness tippek, receptek..."
+                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddTopic(); }}
+                    />
+                    <button onClick={handleAddTopic} className="px-3 py-2 rounded-xl text-sm font-medium" style={{ background: 'var(--accent-glass)', color: 'var(--accent)' }}>
+                      Hozzáadás
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {quickTopics.map((topic) => (
+                      <div key={topic.id} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: 'var(--input-bg)' }}>
+                        <span className="text-sm" style={{ color: 'var(--fg)' }}>{topic.topic}</span>
+                        <button onClick={() => handleDeleteTopic(topic.id)} className="p-1 rounded-lg" style={{ color: 'var(--fg-muted)' }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--fg-secondary)' }}>Memóriák (automatikus)</label>
+                  {memories.length === 0 ? (
+                    <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Még nincsenek memóriák. Chatelj, és automatikusan megjegyzi a fontos dolgokat.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {memories.map((mem) => (
+                        <div key={mem.id} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: 'var(--input-bg)' }}>
+                          <span className="text-sm" style={{ color: 'var(--fg)' }}>{mem.content}</span>
+                          <button onClick={() => handleDeleteMemory(mem.id)} className="p-1 rounded-lg" style={{ color: 'var(--fg-muted)' }}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

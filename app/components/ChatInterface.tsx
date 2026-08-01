@@ -409,6 +409,15 @@ export default function ChatInterface() {
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
+
+      // Background: extract memories
+      if (user && accumulatedContent) {
+        fetch('/api/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: allMessages.slice(-6), userId: user.id }),
+        }).catch(() => {});
+      }
     } catch (error: any) {
       setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') {
@@ -813,7 +822,7 @@ export default function ChatInterface() {
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} />
+          <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} userId={user?.id} />
           <MessageList
             chatId={currentChatId} isLoading={isLoading}
             onMessagesLoaded={handleMessagesLoaded}
