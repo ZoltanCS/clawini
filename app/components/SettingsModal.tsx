@@ -37,6 +37,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const [memories, setMemories] = useState<{id: string; content: string}[]>([]);
   const [quickTopics, setQuickTopics] = useState<{id: string; topic: string}[]>([]);
   const [newTopic, setNewTopic] = useState('');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [cacheSize, setCacheSize] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -55,6 +58,22 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     if (user) {
       loadUserProfile();
     }
+
+    // PWA install prompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, [user, isOpen]);
 
   const loadUserProfile = async () => {
@@ -88,6 +107,32 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     }
   }, [isOpen, activeTab, user]);
 
+  // Load cache size when download tab opens
+  useEffect(() => {
+    if (isOpen && activeTab === 'download' && 'caches' in window) {
+      (async () => {
+        try {
+          const cacheNames = await caches.keys();
+          let totalSize = 0;
+          for (const name of cacheNames) {
+            const cache = await caches.open(name);
+            const keys = await cache.keys();
+            for (const request of keys) {
+              const response = await cache.match(request);
+              if (response) {
+                const blob = await response.blob();
+                totalSize += blob.size;
+              }
+            }
+          }
+          setCacheSize(totalSize);
+        } catch {
+          setCacheSize(null);
+        }
+      })();
+    }
+  }, [isOpen, activeTab]);
+
   const handleDeleteMemory = async (id: string) => {
     await supabase.from('memories').delete().eq('id', id);
     setMemories(prev => prev.filter(m => m.id !== id));
@@ -103,6 +148,36 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     const { data } = await supabase.from('quick_topics').insert({ user_id: user.id, topic: newTopic.trim() }).select().single();
     if (data) setQuickTopics(prev => [data, ...prev]);
     setNewTopic('');
+  };
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleRefreshCache = async () => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.update();
+        window.location.reload();
+      }
+    }
+  };
+
+  const handleClearCache = async () => {
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      setCacheSize(0);
+      alert('Cache törölve!');
+    }
   };
 
   const handleSave = async () => {
@@ -140,6 +215,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     { id: 'general', label: 'Általános', icon: '\u2699' },
     { id: 'prompt', label: 'AI Prompt', icon: '\uD83E\uDDE0' },
     { id: 'memory', label: 'Memória', icon: '\uD83E\uDDE0' },
+    { id: 'download', label: 'Letöltés', icon: '\uD83D\uDCE5' },
     { id: 'account', label: 'Fiók', icon: '\uD83D\uDC64' },
     { id: 'appearance', label: 'Megjelenés', icon: '\uD83C\uDFA8' },
   ];
@@ -378,6 +454,60 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'download' && (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Alkalmazás telepítése</h3>
+                  <p className="text-sm mb-3" style={{ color: 'var(--fg-muted)' }}>
+                    Telepítsd a Clawini-t a készülékedre, hogy offline is használhasd és gyorsabban betöltődjön.
+                  </p>
+                  {isInstalled ? (
+                    <div className="px-4 py-3 rounded-2xl" style={{ background: 'var(--success-bg)', border: '1px solid var(--success)', color: 'var(--success)' }}>
+                      ✓ Az alkalmazás telepítve van
+                    </div>
+                  ) : deferredPrompt ? (
+                    <button onClick={handleInstallPWA} className="px-6 py-3 rounded-2xl font-medium transition-all duration-200 hover-scale" style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', color: 'white', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
+                      📥 Telepítés most
+                    </button>
+                  ) : (
+                    <div className="px-4 py-3 rounded-2xl text-sm" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-muted)' }}>
+                      A telepítés nem elérhető ezen a platformon vagy már telepítve van.
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Offline cache</h3>
+                  <p className="text-sm mb-3" style={{ color: 'var(--fg-muted)' }}>
+                    Az alkalmazás fájljai tárolva vannak a készülékeden az offline működéshez.
+                  </p>
+                  {cacheSize !== null && (
+                    <div className="text-sm mb-3" style={{ color: 'var(--fg-secondary)' }}>
+                      Cache mérete: <strong>{(cacheSize / 1024 / 1024).toFixed(2)} MB</strong>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={handleRefreshCache} className="px-4 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200" style={{ background: 'var(--accent-glass)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+                      🔄 Cache frissítése
+                    </button>
+                    <button onClick={handleClearCache} className="px-4 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200" style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}>
+                      🗑️ Cache törlése
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Offline státusz</h3>
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                    <div className={`w-3 h-3 rounded-full ${navigator.onLine ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span className="text-sm" style={{ color: 'var(--fg)' }}>
+                      {navigator.onLine ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

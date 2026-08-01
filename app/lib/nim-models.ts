@@ -13,7 +13,7 @@ const NIM_CATALOG: NimModel[] = [
   { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
   { id: 'eu.anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Anthropic' },
   { id: 'global.anthropic.claude-opus-4-6-v1', label: 'Claude Opus 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens, Anthropic' },
-  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: false, description: 'Kép leírás proxy' },
+  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, description: 'Kép leírás proxy' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
@@ -55,7 +55,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
         publisher: id.includes('/') ? id.split('/')[0] : 'Egyéb',
         contextWindow: 131072,
         supportsVision: id.toLowerCase().includes('vision') || id.toLowerCase().includes('vl'),
-        supportsThinking: false,
+        supportsThinking: true,
       });
     }
     return apiModels.length > 0 ? apiModels : null;
