@@ -850,38 +850,28 @@ export default function ChatInterface() {
       {/* Model Sheet */}
       {isModelSheetOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="fixed inset-0 bg-black/40 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} style={{ backdropFilter: 'blur(8px)' }} />
-          <div className="relative w-full sm:max-w-sm sm:rounded-3xl sm:mx-4 rounded-t-3xl animate-slideUp glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--fg)' }}>Válassz modellt</h2>
-              <button onClick={() => setIsModelSheetOpen(false)} className="p-2 rounded-xl hover:bg-surface-hover transition-colors" style={{ color: 'var(--fg-secondary)' }}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          <div className="fixed inset-0 sheet-backdrop" onClick={() => setIsModelSheetOpen(false)} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }} />
+          <div className="relative w-full sm:max-w-xs sm:rounded-2xl sm:mx-4 rounded-t-2xl animate-slideUp" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(150%)', WebkitBackdropFilter: 'blur(24px) saturate(150%)', border: '1px solid var(--border-subtle)', boxShadow: '0 -4px 32px rgba(0,0,0,0.3)' }}>
 
-            <div className="px-4 py-4 space-y-3">
+            <div className="px-4 py-3 space-y-0.5">
               {[
-                { tier: 'normal', label: 'Normál', id: 'moonshotai.kimi-k2.5',  thinking: true },
-                { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5',            thinking: true },
-                { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1', thinking: true },
+                { tier: 'normal', label: 'Normal', id: 'moonshotai.kimi-k2.5' },
+                { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5' },
+                { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (
                   <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-200"
-                    style={{
-                      background: selected ? 'var(--accent-glass)' : 'var(--input-bg)',
-                      border: selected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
-                    }}>
-                    <div className="flex-1">
-                      <div className="text-[15px] font-semibold" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
-                        {opt.label}
-                      </div>
-                    </div>
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors duration-100"
+                    style={{ background: 'transparent' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span className="text-sm" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
+                      {opt.label}
+                    </span>
                     {selected && (
-                      <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
                       </svg>
                     )}
@@ -889,19 +879,16 @@ export default function ChatInterface() {
                 );
               })}
 
-              <div className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>Gondolkodás</span>
-                    <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>(thinking)</span>
-                  </div>
-                  <button
-                    onClick={() => { setThinking(t => { const v = !t; localStorage.setItem('thinking', String(v)); return v; }); }}
-                    className="relative w-11 h-6 rounded-full transition-colors duration-200"
-                    style={{ background: thinking ? 'var(--accent)' : 'var(--border)' }}
-                  >
-                    <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: thinking ? 'translateX(22px)' : 'translateX(2px)' }} />
-                  </button>
-                </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-sm" style={{ color: 'var(--fg-secondary)' }}>Gondolkodas</span>
+                <button
+                  onClick={() => { setThinking(t => { const v = !t; localStorage.setItem('thinking', String(v)); return v; }); }}
+                  className="flex items-center gap-1.5"
+                >
+                  <div className="w-2 h-2 rounded-full transition-colors duration-200" style={{ background: thinking ? 'var(--accent)' : 'var(--border-subtle)' }} />
+                  <span className="text-xs" style={{ color: thinking ? 'var(--accent)' : 'var(--fg-muted)' }}>{thinking ? 'be' : 'ki'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

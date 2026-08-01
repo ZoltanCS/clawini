@@ -288,33 +288,51 @@ export default function ChatInput({
         )}
 
         {imagePreviews.length > 0 && (
-          <div className="p-3 pb-0">
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
+          <div className="px-3 pt-3 pb-0 relative">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none items-center" style={{ scrollBehavior: 'smooth' }}>
               {imagePreviews.map((preview, index) => (
-                <div key={index} className="relative inline-block flex-shrink-0 animate-scaleIn">
+                <div key={index} className="relative flex-shrink-0">
                   <img
                     src={preview}
                     alt={`Preview ${index + 1}`}
-                    className="h-20 w-auto rounded-lg object-cover" style={{ border: '1px solid var(--border)' }}
+                    className="object-cover rounded-xl"
+                    style={{ width: '56px', height: '56px', borderRadius: '12px' }}
                   />
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
-                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-all hover:scale-110 active:scale-90"
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] leading-none"
+                    style={{ background: 'rgba(0,0,0,0.7)' }}
                   >
-                    ×
+                    &times;
                   </button>
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white spinner" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+            {imagePreviews.length > 3 && (
+              <>
+                <button
+                  type="button"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+                  style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(8px)', border: '1px solid var(--border-subtle)' }}
+                  onClick={(e) => { const c = e.currentTarget.parentElement?.querySelector('.scrollbar-none'); if (c) c.scrollLeft -= 120; }}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg)' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+                  style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(8px)', border: '1px solid var(--border-subtle)' }}
+                  onClick={(e) => { const c = e.currentTarget.parentElement?.querySelector('.scrollbar-none'); if (c) c.scrollLeft += 120; }}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg)' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
         )}
 
