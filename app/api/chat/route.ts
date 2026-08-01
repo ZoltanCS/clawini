@@ -24,7 +24,7 @@ function useBedrockRuntime(id: string): boolean {
   return isClaudeModel(id) || isNovaModel(id);
 }
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'global.amazon.nova-2-lite-v1:0']);
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
@@ -336,8 +336,17 @@ export async function POST(req: NextRequest) {
         system: systemBlocks.length ? systemBlocks : undefined,
         inferenceConfig: { maxTokens: 4096, temperature: 1 },
       };
+      
+      // Thinking config: different for Nova vs Claude
       if (thinking) {
-        converseBody.performanceConfig = { reasoning: 'enabled' };
+        if (isNovaModel(modelId)) {
+          converseBody.additionalModelRequestFields = {
+            reasoningConfig: { type: 'enabled', maxReasoningEffort: 'low' }
+          };
+          converseBody.performanceConfig = { latency: 'standard' };
+        } else {
+          converseBody.performanceConfig = { reasoning: 'enabled' };
+        }
       }
 
       // Region selection: Nova uses us-east-1, Claude uses eu-central-1

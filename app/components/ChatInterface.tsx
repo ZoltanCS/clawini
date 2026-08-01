@@ -27,7 +27,7 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 
 const MODEL_SHEET_OPTIONS = [
-  { tier: 'normal', label: 'Normál', id: 'global.amazon.nova-2-lite-v1:0' },
+  { tier: 'normal', label: 'Normál', id: 'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0' },
   { tier: 'smart',  label: 'Okos',   id: 'eu.anthropic.claude-sonnet-4-6' },
   { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
 ] as const;
