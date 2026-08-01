@@ -112,64 +112,41 @@ html.dark::before {
 }
 
 /* Tempera paint blob - sits at the bottom, behind everything */
-/* DEFAULT STATE: compact blob at bottom */
+/* Uses top + 100lvh so keyboard doesn't affect it */
 html.dark::after {
   content: '';
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  height: 100vh;
+  width: 100%;
+  height: 100lvh;
   z-index: 0;
   pointer-events: none;
+  will-change: transform, opacity;
   background:
-    /* Core intense blue - brighter, larger */
     radial-gradient(ellipse 70% 35% at 50% 92%, rgba(55, 140, 235, 0.9) 0%, rgba(40, 115, 210, 0.55) 35%, transparent 65%),
-    /* White unmixed streaks */
     radial-gradient(ellipse 20% 12% at 33% 86%, rgba(220, 238, 255, 0.45) 0%, transparent 70%),
     radial-gradient(ellipse 14% 9% at 70% 94%, rgba(235, 245, 255, 0.35) 0%, transparent 60%),
     radial-gradient(ellipse 10% 7% at 52% 80%, rgba(210, 230, 255, 0.25) 0%, transparent 50%),
-    /* Dark unmixed patches */
     radial-gradient(ellipse 18% 10% at 62% 84%, rgba(0, 0, 0, 0.5) 0%, transparent 55%),
     radial-gradient(ellipse 12% 6% at 26% 96%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
-    /* Edge blue variations */
     radial-gradient(ellipse 35% 16% at 78% 89%, rgba(65, 155, 240, 0.45) 0%, transparent 55%),
     radial-gradient(ellipse 28% 13% at 22% 82%, rgba(50, 130, 220, 0.35) 0%, transparent 50%);
   filter: blur(28px);
-  transform: scale(1) translateY(0);
-  transform-origin: 50% 100%;
+  transform: translateZ(0) scale(1);
+  transform-origin: 50% 80%;
 }
 
-/* EXPANDED STATE: blob explodes upward and fills screen */
+/* EXPANDED STATE: simple GPU-only transform */
 html.dark.chat-active::after {
-  animation: temperaExplode 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: temperaExplode 1s ease-out forwards;
 }
 
 @keyframes temperaExplode {
-  0% {
-    transform: scale(1) translateY(0);
-    filter: blur(28px);
-    opacity: 1;
-  }
-  25% {
-    transform: scale(1.4) translateY(-10%);
-    filter: blur(38px);
-    opacity: 0.85;
-  }
-  50% {
-    transform: scale(2.0) translateY(-20%);
-    filter: blur(55px);
-    opacity: 0.65;
-  }
-  75% {
-    transform: scale(2.4) translateY(-25%);
-    filter: blur(70px);
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(2.6) translateY(-28%);
-    filter: blur(80px);
-    opacity: 0.4;
+  to {
+    transform: translateZ(0) scale(2.2) translateY(-20%);
+    filter: blur(60px);
+    opacity: 0.45;
   }
 }
 
