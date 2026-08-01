@@ -352,12 +352,13 @@ export async function POST(req: NextRequest) {
       // Region selection: Nova uses us-east-1, Claude uses eu-central-1
       const region = isNovaModel(modelId) ? 'us-east-1' : CLAUDE_REGION;
       
-      // Build URL - let URL class handle encoding, then use the encoded pathname for signing
-      const baseUrl = `https://bedrock-runtime.${region}.amazonaws.com`;
-      const path = `/model/${encodeURIComponent(modelId)}/converse-stream`;
-      const endpoint = baseUrl + path;
+      // Manually encode the model ID for the path - AWS requires encoded colons
+      const encodedModelId = encodeURIComponent(modelId);
+      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodedModelId}/converse-stream`;
       const bodyStr = JSON.stringify(converseBody);
-      const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
+      
+      // Pass the pre-encoded path directly to signing - don't let URL re-parse it
+      const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN, true);
 
       const converseRes = await fetch(endpoint, {
         method: 'POST',

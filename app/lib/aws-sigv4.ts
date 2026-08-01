@@ -25,6 +25,7 @@ export function signAwsRequest(
   accessKeyId: string,
   secretAccessKey: string,
   sessionToken?: string,
+  preEncodedPath?: boolean,
 ): Record<string, string> {
   const u = new URL(url);
   const now = new Date();
@@ -45,12 +46,21 @@ export function signAwsRequest(
   const canonicalHeaders = signedHeaderKeys.map(k => `${k}:${headers[k]}\n`).join('');
   const payloadHash = sha256(body);
 
-  // Extract path from URL - it's already encoded by URL constructor if needed
-  // But if caller pre-encoded, u.pathname will have it as-is (not double-encoded)
-  // We need to use the raw pathname from URL which represents how the request will be sent
+  // If path is pre-encoded, extract it directly from URL string to avoid double-encoding
+  // URL.pathname decodes the path, so we need to get the raw encoded path from the URL string
+  let canonicalPath: string;
+  if (preEncodedPath) {
+    // Extract path from URL string directly (between host and query/end)
+    const hostEnd = url.indexOf('/', url.indexOf('//') + 2);
+    const queryStart = url.indexOf('?', hostEnd);
+    canonicalPath = queryStart > 0 ? url.slice(hostEnd, queryStart) : url.slice(hostEnd);
+  } else {
+    canonicalPath = u.pathname;
+  }
+
   const canonicalRequest = [
     method,
-    u.pathname,
+    canonicalPath,
     u.searchParams.toString(),
     canonicalHeaders,
     signedHeaders,
