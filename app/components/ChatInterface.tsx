@@ -199,6 +199,14 @@ export default function ChatInterface() {
     });
   }, []);
 
+  const handleThinkingToggle = useCallback(() => {
+    setThinking(prev => {
+      const next = !prev;
+      localStorage.setItem('thinking', String(next));
+      return next;
+    });
+  }, []);
+
   const handleAuthCode = useCallback(async () => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get('code');
@@ -719,6 +727,11 @@ export default function ChatInterface() {
             </button>
 
             <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl glass-hover transition-all duration-200 max-w-[200px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+              {thinking && (
+                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                </svg>
+              )}
               <span className="font-medium text-sm truncate" style={{ color: 'var(--fg)' }}>{modelLabel}</span>
               <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -834,6 +847,7 @@ export default function ChatInterface() {
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
             thinkingContent={thinkingContent}
+            isThinking={thinking}
             onRegenerate={handleRegenerate} onBranch={handleBranch}
             onEdit={handleEditMessage} onDelete={handleDeleteMessage}
             modelLabel={modelLabel} regeneratingId={regeneratingId}
@@ -865,7 +879,7 @@ export default function ChatInterface() {
       {isModelSheetOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
-          <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[140px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+          <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
             {MODEL_SHEET_OPTIONS.map(opt => {
               const selected = opt.id === selectedModelId;
               return (
@@ -884,6 +898,27 @@ export default function ChatInterface() {
                 </button>
               );
             })}
+            <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg-muted)' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                </svg>
+                <span className="text-sm" style={{ color: 'var(--fg-secondary)' }}>Gondolkodás</span>
+              </div>
+              <button
+                onClick={handleThinkingToggle}
+                aria-pressed={thinking}
+                title={thinking ? 'Gondolkodás kikapcsolása' : 'Gondolkodás bekapcsolása'}
+                className="relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
+                style={{ background: thinking ? 'var(--accent)' : 'var(--border)' }}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200`}
+                  style={{ background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', left: thinking ? '18px' : '2px' }}
+                />
+              </button>
+            </div>
           </div>
         </>
       )}

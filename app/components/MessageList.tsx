@@ -11,6 +11,7 @@ interface MessageListProps {
   onMessagesLoaded?: (messages: Message[]) => void;
   streamingContent?: string;
   thinkingContent?: string;
+  isThinking?: boolean;
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
   onEdit?: (messageId: string) => void;
@@ -41,7 +42,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, thinkingContent, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, thinkingContent, isThinking, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -158,13 +159,22 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
             />
           </div>
         ))}
-        {thinkingContent && (
+        {isThinking && isLoading && (
           <div className="flex justify-start mb-4">
             <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Gondolkodás...</span>
+                {!thinkingContent && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+                  </span>
+                )}
               </div>
-              <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)' }}>{thinkingContent}</div>
+              {thinkingContent && (
+                <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)' }}>{thinkingContent}</div>
+              )}
             </div>
           </div>
         )}
@@ -183,7 +193,7 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
             </div>
           </div>
         )}
-        {isLoading && !streamingContent && <TypingIndicator modelLabel={modelLabel} />}
+        {isLoading && !streamingContent && !(isThinking && isLoading) && <TypingIndicator modelLabel={modelLabel} />}
         <div ref={bottomRef} className="h-2" />
       </div>
     </div>
