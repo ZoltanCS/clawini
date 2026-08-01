@@ -24,7 +24,7 @@ function useBedrockRuntime(id: string): boolean {
   return isClaudeModel(id) || isNovaModel(id);
 }
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'us.amazon.nova-lite-v1:0']);
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'global.amazon.nova-2-lite-v1:0']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
@@ -342,7 +342,7 @@ export async function POST(req: NextRequest) {
 
       // Region selection: Nova uses us-east-1, Claude uses eu-central-1
       const region = isNovaModel(modelId) ? 'us-east-1' : CLAUDE_REGION;
-      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse-stream`;
+      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${modelId}/converse-stream`;
       const bodyStr = JSON.stringify(converseBody);
       const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
 

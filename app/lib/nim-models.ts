@@ -10,7 +10,7 @@ export interface NimModel {
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'us.amazon.nova-lite-v1:0', label: 'Nova 2 Lite',      publisher: 'Amazon',      contextWindow: 300000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Multimodális, gyors, olcsó' },
+  { id: 'global.amazon.nova-2-lite-v1:0', label: 'Nova 2 Lite',      publisher: 'Amazon',      contextWindow: 300000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Multimodális, gyors, olcsó' },
   { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
   { id: 'eu.anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Anthropic' },
   { id: 'global.anthropic.claude-opus-4-6-v1', label: 'Claude Opus 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens, Anthropic' },
@@ -65,7 +65,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const DEFAULT_NIM_MODEL_ID = 'us.amazon.nova-lite-v1:0';
+export const DEFAULT_NIM_MODEL_ID = 'global.amazon.nova-2-lite-v1:0';
 export const DEFAULT_GC_MODEL_ID = 'zai.glm-5';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {
