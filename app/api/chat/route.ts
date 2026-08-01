@@ -352,8 +352,9 @@ export async function POST(req: NextRequest) {
       // Region selection: Nova uses us-east-1, Claude uses eu-central-1
       const region = isNovaModel(modelId) ? 'us-east-1' : CLAUDE_REGION;
       
-      // DO NOT encode - let URL() and fetch() handle encoding consistently
-      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${modelId}/converse-stream`;
+      // URL-encode the model ID (ARNs contain colons that need encoding)
+      const encodedModelId = encodeURIComponent(modelId);
+      const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodedModelId}/converse-stream`;
       const bodyStr = JSON.stringify(converseBody);
       const headers = signAwsRequest('POST', endpoint, bodyStr, region, 'bedrock', accessKeyId, secretAccessKey, process.env.AWS_SESSION_TOKEN);
 
