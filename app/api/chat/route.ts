@@ -367,20 +367,28 @@ export async function POST(req: NextRequest) {
       if (!converseRes.ok) {
         let err = '';
         try { err = await converseRes.text(); } catch {}
-        return NextResponse.json({ error: `Claude API error ${converseRes.status}`, details: err }, { status: converseRes.status });
+        console.error('[Converse] Error response:', converseRes.status, err);
+        return NextResponse.json({ error: `Bedrock API error ${converseRes.status}`, details: err }, { status: converseRes.status });
       }
+      
+      console.log('[Converse] Response OK, starting stream parse...');
 
       // Transform Converse Stream binary event format → OpenAI SSE
       const stream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
+          let eventCount = 0;
+          let textChunks = 0;
           try {
             const reader = converseRes.body!.getReader();
             let buffer = Buffer.alloc(0);
 
             while (true) {
               const { done, value } = await reader.read();
-              if (done) break;
+              if (done) {
+                console.log(`[Converse] Stream done. Events: ${eventCount}, TextChunks: ${textChunks}`);
+                break;
+              }
 
               buffer = Buffer.concat([buffer, Buffer.from(value)]);
 
@@ -399,11 +407,13 @@ export async function POST(req: NextRequest) {
                 try {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
+                  eventCount++;
                   
                   // Debug: log the event structure
                   console.log('[Converse Stream] Event:', JSON.stringify(event).slice(0, 500));
 
                   if (event.delta?.text) {
+                    textChunks++;
                     const chunk = JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.delta?.reasoningContent?.text) {
@@ -411,6 +421,7 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.contentBlockDelta?.delta?.text) {
                     // Nova format
+                    textChunks++;
                     const chunk = JSON.stringify({ choices: [{ delta: { content: event.contentBlockDelta.delta.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.contentBlockDelta?.delta?.reasoningContent?.text) {
@@ -424,12 +435,15 @@ export async function POST(req: NextRequest) {
                     const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Hiba: ${errMsg}]` } }] });
                     controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
                   }
-                } catch { /* skip unparseable frames */ }
+                } catch (parseErr) {
+                  console.error('[Converse] Parse error:', parseErr);
+                }
               }
             }
 
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           } catch (e: any) {
+            console.error('[Converse] Stream error:', e.message);
             const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] });
             controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
