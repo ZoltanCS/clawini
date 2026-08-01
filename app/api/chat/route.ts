@@ -16,7 +16,15 @@ function isClaudeModel(id: string): boolean {
   return id.startsWith('global.anthropic.') || id.startsWith('eu.anthropic.') || id.startsWith('anthropic.claude');
 }
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6']);
+function isNovaModel(id: string): boolean {
+  return id.includes('amazon.nova');
+}
+
+function useBedrockRuntime(id: string): boolean {
+  return isClaudeModel(id) || isNovaModel(id);
+}
+
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'global.amazon.nova-2-lite-v1:0']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
@@ -272,8 +280,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- CLAUDE PATH: bedrock-runtime Converse Stream API ---
-    if (isClaudeModel(modelId)) {
+    // --- BEDROCK-RUNTIME PATH: Claude + Nova models use Converse Stream API ---
+    if (useBedrockRuntime(modelId)) {
       const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
       const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
       if (!accessKeyId || !secretAccessKey) {

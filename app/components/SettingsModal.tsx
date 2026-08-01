@@ -54,27 +54,30 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
       const savedExport = localStorage.getItem(EXPORT_FORMAT_KEY);
       if (savedExport) setExportFormat(savedExport as any);
+
+      // Check if already installed
+      if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+        setIsInstalled(true);
+      }
     }
     if (user) {
       loadUserProfile();
     }
+  }, [user, isOpen]);
 
-    // PWA install prompt
+  // PWA install prompt listener (global, not dependent on modal open)
+  useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      setIsInstalled(false);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
-      setIsInstalled(true);
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [user, isOpen]);
+  }, []);
 
   const loadUserProfile = async () => {
     if (!user) return;
