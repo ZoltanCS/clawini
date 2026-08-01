@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     if (!userId) return NextResponse.json({ suggestions: [] });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
     // Get memories
     const { data: memories } = await supabase

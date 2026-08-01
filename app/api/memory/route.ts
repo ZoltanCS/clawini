@@ -62,10 +62,10 @@ export async function POST(req: NextRequest) {
     const facts = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 3 && l.length < 100);
     if (facts.length === 0) return NextResponse.json({ ok: true, memories: [] });
 
-    // Save to Supabase
+    // Save to Supabase using service key to bypass RLS
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
     // Check for duplicates
     const { data: existing } = await supabase
@@ -77,13 +77,15 @@ export async function POST(req: NextRequest) {
     const newFacts = facts.filter((f: string) => !existingSet.has(f.toLowerCase()));
 
     if (newFacts.length > 0) {
-      await supabase.from('memories').insert(
+      const { error } = await supabase.from('memories').insert(
         newFacts.map((content: string) => ({ user_id: userId, content, source: 'auto' }))
       );
+      if (error) console.error('Memory insert error:', error);
     }
 
     return NextResponse.json({ ok: true, memories: newFacts });
-  } catch {
+  } catch (e: any) {
+    console.error('Memory route error:', e?.message);
     return NextResponse.json({ ok: true, memories: [] });
   }
 }
