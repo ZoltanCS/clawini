@@ -42,12 +42,7 @@ export default function Sidebar({
       <aside className="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[300px] flex flex-col animate-slideInLeft glass-elevated glass-border-gradient" style={{ borderRadius: '0 20px 20px 0' }}>
         <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#007aff] to-[#5856d6] flex items-center justify-center shadow-md" style={{ boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <span className="font-semibold text-[15px]" style={{ color: 'var(--fg)' }}>Clawini</span>
+            <span className="font-semibold text-[15px] tracking-tight" style={{ color: 'var(--fg)' }}>Clawini</span>
           </div>
           <button onClick={onClose} className="p-2 rounded-full touch-active" style={{ color: 'var(--fg-muted)' }}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -62,7 +57,7 @@ export default function Sidebar({
             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 text-left glass-hover"
             style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--accent)' }}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg-secondary)' }}>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             <span className="font-medium">Új beszélgetés</span>
@@ -88,9 +83,6 @@ export default function Sidebar({
                       color: isSelected ? 'var(--accent)' : 'var(--fg)',
                     }}
                   >
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: isSelected ? 'var(--accent)' : 'var(--fg-muted)' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                    </svg>
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-sm font-medium">{chat.title}</div>
                       <div className="text-xs" style={{ color: 'var(--fg-muted)' }}>{formatDate(chat.updated_at)}</div>
@@ -114,7 +106,7 @@ export default function Sidebar({
         <div className="p-4 space-y-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           {user ? (
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)' }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0" style={{ background: 'var(--glass-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-secondary)' }}>
                 {user.email?.charAt(0).toUpperCase() || '?'}
               </div>
               <div className="flex-1 min-w-0">
@@ -136,8 +128,8 @@ export default function Sidebar({
           ) : (
             <button
               onClick={onSignIn}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-2xl transition-all duration-300 hover-scale"
-              style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: '0 4px 16px rgba(0,122,255,0.3)' }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl transition-all duration-300 hover-scale"
+              style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg)' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />

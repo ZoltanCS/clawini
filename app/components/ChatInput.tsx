@@ -22,11 +22,11 @@ function SendButton({ disabled, isLoading, onStop }: { disabled: boolean; isLoad
       <button
         type="button"
         onClick={onStop}
-        className="flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center animate-morphIn hover-scale active:scale-95 transition-all duration-200"
-        style={{ background: 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}
+        className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center hover-scale active:scale-95 transition-all duration-200"
+        style={{ background: 'var(--glass-bg)', border: '1px solid var(--border-subtle)', backdropFilter: 'blur(var(--glass-blur))' }}
         title="Leállítás"
       >
-        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg)' }}>
           <rect x="6" y="6" width="12" height="12" rx="1" />
         </svg>
       </button>
@@ -37,11 +37,11 @@ function SendButton({ disabled, isLoading, onStop }: { disabled: boolean; isLoad
     <button
       type="submit"
       disabled={disabled}
-      className="flex-shrink-0 w-10 h-10 disabled:opacity-40 rounded-full flex items-center justify-center btn-send group hover-scale active:scale-95 transition-all duration-200"
-      style={{ background: disabled ? 'var(--fg-muted)' : 'linear-gradient(135deg, #007aff, #5856d6)', boxShadow: disabled ? 'none' : '0 4px 12px rgba(0,122,255,0.3)' }}
+      className="flex-shrink-0 w-10 h-10 disabled:opacity-20 rounded-full flex items-center justify-center group hover-scale active:scale-95 transition-all duration-200"
+      style={{ background: disabled ? 'transparent' : 'var(--glass-bg)', border: disabled ? '1px solid var(--border-subtle)' : '1px solid rgba(255,255,255,0.1)', backdropFilter: disabled ? 'none' : 'blur(var(--glass-blur))' }}
     >
-      <svg className="w-5 h-5 text-white transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 12L3.75 9.75a2.25 2.25 0 013.182-3.182L12 12l5.068-5.432a2.25 2.25 0 113.182 3.182L18 12l2.25 2.25a2.25 2.25 0 01-3.182 3.182L12 12l-5.068 5.432a2.25 2.25 0 01-3.182-3.182L6 12z" />
+      <svg className="w-5 h-5 transition-transform duration-200 group-hover:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg)' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
       </svg>
     </button>
   );

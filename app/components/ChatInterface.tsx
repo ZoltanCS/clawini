@@ -705,11 +705,6 @@ export default function ChatInterface() {
             </button>
 
             <button onClick={() => setIsModelSheetOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl glass-hover transition-all duration-200 max-w-[200px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
-              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-[#007aff] to-[#5856d6] flex items-center justify-center flex-shrink-0 shadow-sm" style={{ boxShadow: '0 2px 6px rgba(0,122,255,0.2)' }}>
-                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-              </div>
               <span className="font-medium text-sm truncate" style={{ color: 'var(--fg)' }}>{modelLabel}</span>
               <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -729,7 +724,7 @@ export default function ChatInterface() {
           <div className="flex items-center gap-0.5 flex-shrink-0">
             <button onClick={() => setShowTokenUsage(p => { const n = !p; localStorage.setItem('showTokenUsage', String(n)); return n; })} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Token használat" style={{ color: 'var(--fg-secondary)' }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 9h16.5m-16.5 6.75h16.5" />
               </svg>
             </button>
 
@@ -868,21 +863,18 @@ export default function ChatInterface() {
 
             <div className="px-4 py-4 space-y-3">
               {[
-                { tier: 'normal', icon: '\u2699\uFE0F',  label: 'Normál', bg: 'linear-gradient(135deg, #007aff, #5ac8fa)', shadow: 'rgba(0,122,255,0.3)',   id: 'moonshotai.kimi-k2.5',  thinking: true },
-                { tier: 'smart',  icon: '\uD83E\uDDE0', label: 'Okos',    bg: 'linear-gradient(135deg, #af52de, #5856d6)', shadow: 'rgba(88,86,214,0.3)',  id: 'zai.glm-5',            thinking: true },
-                { tier: 'ultra',  icon: '\uD83D\uDC8E', label: 'Ultra',   bg: 'linear-gradient(135deg, #d4af37, #f5e6a3)', shadow: 'rgba(212,175,55,0.3)', id: 'global.anthropic.claude-opus-4-6-v1', thinking: true },
+                { tier: 'normal', label: 'Normál', id: 'moonshotai.kimi-k2.5',  thinking: true },
+                { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5',            thinking: true },
+                { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1', thinking: true },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
                 return (
                   <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-200 glass-border-gradient"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-200"
                     style={{
                       background: selected ? 'var(--accent-glass)' : 'var(--input-bg)',
                       border: selected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
                     }}>
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: opt.bg, boxShadow: `0 4px 12px ${opt.shadow}` }}>
-                      {opt.icon}
-                    </div>
                     <div className="flex-1">
                       <div className="text-[15px] font-semibold" style={{ color: selected ? 'var(--accent)' : 'var(--fg)' }}>
                         {opt.label}
