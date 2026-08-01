@@ -399,6 +399,9 @@ export async function POST(req: NextRequest) {
                 try {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
+                  
+                  // Debug: log the event structure
+                  console.log('[Converse Stream] Event:', JSON.stringify(event).slice(0, 500));
 
                   if (event.delta?.text) {
                     const chunk = JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] });
@@ -406,7 +409,15 @@ export async function POST(req: NextRequest) {
                   } else if (event.delta?.reasoningContent?.text) {
                     const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: event.delta.reasoningContent.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
-                  } else if (event.stopReason) {
+                  } else if (event.contentBlockDelta?.delta?.text) {
+                    // Nova format
+                    const chunk = JSON.stringify({ choices: [{ delta: { content: event.contentBlockDelta.delta.text } }] });
+                    controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                  } else if (event.contentBlockDelta?.delta?.reasoningContent?.text) {
+                    // Nova reasoning format
+                    const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: event.contentBlockDelta.delta.reasoningContent.text } }] });
+                    controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                  } else if (event.stopReason || event.messageStop) {
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   } else if (event.internalServerException || event.modelStreamErrorException || event.validationException) {
                     const errMsg = event.internalServerException?.message || event.modelStreamErrorException?.message || event.validationException?.message || 'Unknown stream error';
