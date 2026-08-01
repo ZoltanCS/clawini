@@ -899,26 +899,20 @@ export default function ChatInterface() {
               );
             })}
             <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--fg-muted)' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+            <button
+              onClick={handleThinkingToggle}
+              className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+              style={{ color: thinking ? 'var(--accent)' : 'var(--fg-secondary)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span>Gondolkodás</span>
+              {thinking && (
+                <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
-                <span className="text-sm" style={{ color: 'var(--fg-secondary)' }}>Gondolkodás</span>
-              </div>
-              <button
-                onClick={handleThinkingToggle}
-                aria-pressed={thinking}
-                title={thinking ? 'Gondolkodás kikapcsolása' : 'Gondolkodás bekapcsolása'}
-                className="relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
-                style={{ background: thinking ? 'var(--accent)' : 'var(--border)' }}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200`}
-                  style={{ background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', left: thinking ? '18px' : '2px' }}
-                />
-              </button>
-            </div>
+              )}
+            </button>
           </div>
         </>
       )}
