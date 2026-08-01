@@ -45,9 +45,13 @@ export function signAwsRequest(
   const canonicalHeaders = signedHeaderKeys.map(k => `${k}:${headers[k]}\n`).join('');
   const payloadHash = sha256(body);
 
+  // Extract pathname manually to avoid double-encoding by URL.pathname
+  const pathMatch = url.match(/^https?:\/\/[^\/]+(\/[^?]*)/);
+  const pathname = pathMatch ? pathMatch[1] : u.pathname;
+
   const canonicalRequest = [
     method,
-    u.pathname,
+    pathname,
     u.searchParams.toString(),
     canonicalHeaders,
     signedHeaders,
