@@ -11,7 +11,7 @@ export interface NimModel {
 
 const NIM_CATALOG: NimModel[] = [
   { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
-  { id: 'zai.glm-5',                   label: 'GLM 5',            publisher: 'Zhipu AI',    contextWindow: 204800, supportsVision: false, supportsThinking: true, tier: 'smart',  description: 'Legokosabb, mély gondolkodás' },
+  { id: 'eu.anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Anthropic' },
   { id: 'global.anthropic.claude-opus-4-6-v1', label: 'Claude Opus 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens, Anthropic' },
   { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: false, description: 'Kép leírás proxy' },
 ];

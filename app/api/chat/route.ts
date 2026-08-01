@@ -13,10 +13,10 @@ const FALLBACK_CHAIN: Record<string, string[]> = {
 };
 
 function isClaudeModel(id: string): boolean {
-  return id.startsWith('global.anthropic.') || id.startsWith('anthropic.claude');
+  return id.startsWith('global.anthropic.') || id.startsWith('eu.anthropic.') || id.startsWith('anthropic.claude');
 }
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1']);
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.

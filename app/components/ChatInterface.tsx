@@ -110,13 +110,14 @@ export default function ChatInterface() {
 
     // Migrate old model IDs
     const modelIdMigration: Record<string, string> = {
-      'z-ai/glm-5.3': 'zai.glm-5',
-      'z-ai/glm-5.2': 'zai.glm-5',
-      'zai.glm-4.7': 'zai.glm-5',
+      'z-ai/glm-5.3': 'eu.anthropic.claude-sonnet-4-6',
+      'z-ai/glm-5.2': 'eu.anthropic.claude-sonnet-4-6',
+      'zai.glm-4.7': 'eu.anthropic.claude-sonnet-4-6',
+      'zai.glm-5': 'eu.anthropic.claude-sonnet-4-6',
       'minimax/minimax-m1-80k': 'moonshotai.kimi-k2.5',
       'minimaxai/minimax-m3': 'moonshotai.kimi-k2.5',
-      'deepseek-ai/deepseek-r1': 'zai.glm-5',
-      'deepseek-ai/deepseek-v4-pro': 'zai.glm-5',
+      'deepseek-ai/deepseek-r1': 'eu.anthropic.claude-sonnet-4-6',
+      'deepseek-ai/deepseek-v4-pro': 'eu.anthropic.claude-sonnet-4-6',
       'moonshotai/kimi-k2.6': 'moonshotai.kimi-k2.5',
     };
     const migratedModel = savedModel ? (modelIdMigration[savedModel] || savedModel) : null;
@@ -254,10 +255,11 @@ export default function ChatInterface() {
     let thinkingRafPending = false;
 
     const scheduleFlush = () => {
-      if (rafPending) return;
+      if (rafPending || signal?.aborted) return;
       rafPending = true;
       requestAnimationFrame(() => {
         rafPending = false;
+        if (signal?.aborted) return;
         if (accumulated !== partialContentRef.current) {
           partialContentRef.current = accumulated;
           setStreamingContent(accumulated);
@@ -266,10 +268,11 @@ export default function ChatInterface() {
     };
 
     const scheduleThinkingFlush = () => {
-      if (thinkingRafPending) return;
+      if (thinkingRafPending || signal?.aborted) return;
       thinkingRafPending = true;
       requestAnimationFrame(() => {
         thinkingRafPending = false;
+        if (signal?.aborted) return;
         if (accumulatedThinking !== thinkingContentRef.current) {
           thinkingContentRef.current = accumulatedThinking;
           setThinkingContent(accumulatedThinking);
@@ -595,13 +598,9 @@ export default function ChatInterface() {
     const idx = msgs.findIndex(m => m.id === messageId);
     if (idx === -1) return;
     const toDelete = msgs.slice(idx).map(m => m.id);
-    const { error } = await supabase.from('messages').delete().in('id', toDelete);
-    if (error) {
-      console.error('Delete error:', error);
-      // Fallback: try deleting one by one
-      for (const id of toDelete) {
-        await supabase.from('messages').delete().eq('id', id);
-      }
+    // Delete with chat_id filter to satisfy RLS
+    for (const id of toDelete) {
+      await supabase.from('messages').delete().eq('id', id).eq('chat_id', currentChatId);
     }
   }, [currentChatId, user]);
 
@@ -856,7 +855,7 @@ export default function ChatInterface() {
             <div className="px-4 py-3 space-y-0.5">
               {[
                 { tier: 'normal', label: 'Normal', id: 'moonshotai.kimi-k2.5' },
-                { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5' },
+                { tier: 'smart',  label: 'Okos',   id: 'eu.anthropic.claude-sonnet-4-6' },
                 { tier: 'ultra',  label: 'Ultra',  id: 'global.anthropic.claude-opus-4-6-v1' },
               ].map(opt => {
                 const selected = opt.id === selectedModelId;
