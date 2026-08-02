@@ -337,10 +337,12 @@ export async function POST(req: NextRequest) {
         inferenceConfig: { maxTokens: thinking ? 8192 : 4096, temperature: 1 },
       };
       
-      // Thinking config: Claude uses additionalModelRequestFields, Nova Lite 1.x doesn't support it
+      // Thinking config: Claude uses additionalModelRequestFields, Nova 2 uses reasoningConfig
       if (thinking) {
         if (isNovaModel(modelId)) {
-          // Nova Lite 1.x (nova-lite-v1) does not support reasoningConfig - skip it
+          converseBody.additionalModelRequestFields = {
+            reasoningConfig: { type: 'enabled' }
+          };
         } else {
           converseBody.additionalModelRequestFields = {
             thinking: { type: 'enabled', budget_tokens: 4096 }
