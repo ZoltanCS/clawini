@@ -95,6 +95,7 @@ export default function ChatInterface() {
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_NIM_MODEL_ID);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
+  const [providerTab, setProviderTab] = useState<'nvidia' | 'google'>('nvidia');
   const [error, setError] = useState<ChatError | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [models, setModels] = useState<NimModel[]>([]);
@@ -1073,6 +1074,26 @@ export default function ChatInterface() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
           <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+            {devMode && (
+              <div className="px-3 pt-3 pb-1">
+                <div className="relative flex rounded-full p-1 mx-auto max-w-[220px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                  <div
+                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full transition-transform duration-200"
+                    style={{ background: 'var(--accent-glass)', left: providerTab === 'nvidia' ? '4px' : 'calc(50% + 0px)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                  />
+                  {(['nvidia', 'google'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setProviderTab(p)}
+                      className="relative flex-1 rounded-full py-1 text-[11px] font-semibold transition-colors"
+                      style={{ color: providerTab === p ? 'var(--accent)' : 'var(--fg-muted)' }}
+                    >
+                      {p === 'nvidia' ? 'NVIDIA' : 'Google'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {dropdownGroups.main.map(opt => {
               const selected = opt.id === selectedModelId;
               return (
