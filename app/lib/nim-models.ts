@@ -24,9 +24,9 @@ const DEV_CATALOG: NimModel[] = [
 ];
 
 export const GEMINI_CATALOG: NimModel[] = [
-  { id: 'gemini-2.5-flash',                  label: 'Gemini 2.5 Flash',    publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, olcsó, multimodális' },
-  { id: 'gemini-3.5-flash',                  label: 'Gemini 3.5 Flash',    publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Élenjáró, gyors Google' },
-  { id: 'gemini-2.5-pro',                    label: 'Gemini 2.5 Pro',      publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Legokosabb Google modell' },
+  { id: 'gemini-3.1-flash-lite',            label: 'Gemini 3.1 Flash-Lite', publisher: 'Google',   contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Ingyenes, gyors, multimodális' },
+  { id: 'gemini-3.5-flash',                 label: 'Gemini 3.5 Flash',     publisher: 'Google',   contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, élenjáró, gyors Google' },
+  { id: 'gemini-2.5-flash',                 label: 'Gemini 2.5 Flash',     publisher: 'Google',   contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, megbízható Google' },
 ];
 
 export const NIM_FALLBACK = [...NIM_CATALOG, ...DEV_CATALOG];
