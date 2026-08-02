@@ -258,8 +258,30 @@ export default function ChatInterface() {
   const modelLabel = currentModel?.label || selectedModelId.split('/').pop() || selectedModelId;
   const contextWindow = currentModel?.contextWindow || 131072;
 
+  const dropdownGroups = useMemo(() => {
+    const main: { id: string; label: string; tier?: string }[] = [];
+    const dev: { id: string; label: string }[] = [];
+    if (models.length === 0) {
+      main.push(...MODEL_SHEET_OPTIONS);
+      if (devMode) dev.push(...DEV_MODEL_OPTIONS);
+    } else {
+      const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
+      main.push(
+        ...models
+          .filter((m: any) => m.tier)
+          .sort((a: any, b: any) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9))
+          .map((m: any) => ({ id: m.id, label: m.label || m.id, tier: m.tier as string })),
+      );
+      if (devMode) dev.push(...models.filter((m: any) => !m.tier).map((m: any) => ({ id: m.id, label: m.label || m.id })));
+      for (const opt of MODEL_SHEET_OPTIONS) if (!main.some(m => m.id === opt.id)) main.push(opt);
+      if (devMode) for (const opt of DEV_MODEL_OPTIONS) if (!dev.some(m => m.id === opt.id)) dev.push(opt);
+    }
+    return { main, dev };
+  }, [models, devMode]);
+
   useEffect(() => {
-    if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId)) {
+    const knownIds: Set<string> = new Set([...MODEL_SHEET_OPTIONS, ...DEV_MODEL_OPTIONS].map(o => o.id));
+    if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId) && !knownIds.has(selectedModelId)) {
       setSelectedModelId(DEFAULT_NIM_MODEL_ID);
       localStorage.setItem(SELECTED_MODEL_KEY, DEFAULT_NIM_MODEL_ID);
     }
@@ -1051,10 +1073,10 @@ export default function ChatInterface() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
           <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-            {MODEL_SHEET_OPTIONS.map(opt => {
+            {dropdownGroups.main.map(opt => {
               const selected = opt.id === selectedModelId;
               return (
-                <button key={opt.tier} onClick={() => handleModelChange(opt.id)}
+                <button key={opt.id} onClick={() => handleModelChange(opt.id)}
                   className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
                   style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
@@ -1069,11 +1091,11 @@ export default function ChatInterface() {
                 </button>
               );
             })}
-            {devMode && (
+            {dropdownGroups.dev.length > 0 && (
               <>
                 <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
                 <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Dev</div>
-                {DEV_MODEL_OPTIONS.map(opt => {
+                {dropdownGroups.dev.map(opt => {
                   const selected = opt.id === selectedModelId;
                   return (
                     <button key={opt.id} onClick={() => handleModelChange(opt.id)}
