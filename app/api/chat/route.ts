@@ -341,8 +341,9 @@ export async function POST(req: NextRequest) {
       if (thinking) {
         if (isNovaModel(modelId)) {
           converseBody.additionalModelRequestFields = {
-            reasoningConfig: { type: 'enabled' }
+            reasoningConfig: { type: 'enabled', maxReasoningEffort: 'low' }
           };
+          converseBody.performanceConfig = { latency: 'standard' };
         } else {
           converseBody.additionalModelRequestFields = {
             thinking: { type: 'enabled', budget_tokens: 4096 }
