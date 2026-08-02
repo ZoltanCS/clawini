@@ -56,6 +56,12 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
   const [debugLoading, setDebugLoading] = useState(false);
   const [localData, setLocalData] = useState<{ key: string; value: string }[]>([]);
   const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
+  const [nimCatalog, setNimCatalog] = useState<string[]>([]);
+  const [nimCatalogLoading, setNimCatalogLoading] = useState(false);
+  const [nimCatalogError, setNimCatalogError] = useState<string | null>(null);
+  const [selectedNimModels, setSelectedNimModels] = useState<Set<string>>(new Set());
+  const [nimSearch, setNimSearch] = useState('');
+  const [catalogAdded, setCatalogAdded] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -682,6 +688,131 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
                     >
                       {catalogSaved ? 'Mentve!' : 'Mentés'}
                     </button>
+                  </div>
+
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={async () => {
+                          setNimCatalogLoading(true);
+                          setNimCatalogError(null);
+                          try {
+                            const res = await fetch('/api/debug');
+                            const data = await res.json();
+                            if (data.nimModels && Array.isArray(data.nimModels)) {
+                              setNimCatalog(data.nimModels);
+                              setSelectedNimModels(new Set());
+                            } else {
+                              setNimCatalog([]);
+                              setNimCatalogError(data.nimError || 'Nem sikerült lekérni a modelleket');
+                            }
+                          } catch (e: any) {
+                            setNimCatalogError(e?.message || 'Hálózati hiba');
+                          }
+                          setNimCatalogLoading(false);
+                        }}
+                        disabled={nimCatalogLoading}
+                        className="px-3 py-2 rounded-xl text-xs font-medium disabled:opacity-50" style={{ background: 'var(--accent-glass)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                      >
+                        {nimCatalogLoading ? 'Betöltés...' : (nimCatalog.length > 0 ? 'Újra listázás' : 'Elérhető modellek az API-ból')}
+                      </button>
+                      {nimCatalog.length > 0 && (
+                        <>
+                          <input
+                            value={nimSearch}
+                            onChange={(e) => setNimSearch(e.target.value)}
+                            placeholder="Keresés..."
+                            className="flex-1 min-w-0 px-3 py-2 rounded-xl text-xs"
+                            style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
+                          />
+                          <button
+                            onClick={() => {
+                              const existingIds = new Set((JSON.parse(catalogJson || '[]') || []).map((m: any) => m.id).filter(Boolean));
+                              const filtered = nimCatalog.filter(id => id.toLowerCase().includes(nimSearch.toLowerCase()));
+                              if (filtered.length > 0 && filtered.every(id => selectedNimModels.has(id))) {
+                                setSelectedNimModels(new Set());
+                              } else {
+                                setSelectedNimModels(new Set(filtered));
+                              }
+                            }}
+                            className="px-3 py-2 rounded-xl text-xs font-medium" style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
+                          >
+                            Összes jelölése
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {nimCatalogError && (
+                      <div className="text-xs mb-2" style={{ color: 'var(--danger)' }}>Hiba: {nimCatalogError}</div>
+                    )}
+                    {nimCatalog.length > 0 && (
+                      <>
+                        <div className="max-h-44 overflow-y-auto rounded-xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                          {nimCatalog.filter(id => id.toLowerCase().includes(nimSearch.toLowerCase())).map(id => {
+                            const known = (JSON.parse(catalogJson || '[]') || []).some((m: any) => m.id === id);
+                            return (
+                              <label key={id} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:opacity-80" style={{ color: 'var(--fg)' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNimModels.has(id)}
+                                  onChange={() => {
+                                    setSelectedNimModels(prev => {
+                                      const n = new Set(prev);
+                                      if (n.has(id)) n.delete(id); else n.add(id);
+                                      return n;
+                                    });
+                                  }}
+                                />
+                                <span className="flex-1 min-w-0 truncate font-mono text-[11px]">{id}</span>
+                                {known && <span className="text-[10px] shrink-0" style={{ color: 'var(--success)' }}>katalógusban van</span>}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            onClick={() => {
+                              const selected = nimCatalog.filter(id => selectedNimModels.has(id));
+                              if (selected.length === 0) return;
+                              let current: any[] = [];
+                              try {
+                                const parsed = JSON.parse(catalogJson);
+                                if (Array.isArray(parsed)) current = parsed;
+                              } catch {}
+                              const existingIds = new Set(current.map(m => m.id));
+                              const added: any[] = [];
+                              for (const id of selected) {
+                                if (existingIds.has(id)) continue;
+                                existingIds.add(id);
+                                added.push({
+                                  id,
+                                  label: id.includes('/') ? id.split('/').pop() : id,
+                                  publisher: id.includes('/') ? id.split('/')[0] : 'Egyéb',
+                                  contextWindow: 131072,
+                                  supportsVision: id.toLowerCase().includes('vision') || id.toLowerCase().includes('vl'),
+                                  supportsThinking: true,
+                                  description: 'API-ból hozzáadva',
+                                });
+                              }
+                              const merged = [...current, ...added];
+                              setCatalogJson(JSON.stringify(merged, null, 2));
+                              localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ models: merged, timestamp: Date.now() }));
+                              window.dispatchEvent(new CustomEvent('models-cache-updated'));
+                              setSelectedNimModels(new Set());
+                              setCatalogAdded(true);
+                              setTimeout(() => setCatalogAdded(false), 2000);
+                            }}
+                            disabled={selectedNimModels.size === 0}
+                            className="px-3 py-2 rounded-xl text-xs font-medium disabled:opacity-50" style={{ background: 'var(--accent-glass)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                          >
+                            {catalogAdded ? 'Hozzáadva!' : `Kijelöltek hozzáadása (${selectedNimModels.size})`}
+                          </button>
+                          <span className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
+                            {nimCatalog.length} modell, {selectedNimModels.size} kijelölve
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
