@@ -177,7 +177,11 @@ export default function ChatInterface() {
     const onModelsCacheUpdated = () => {
       try {
         const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
-        if (Array.isArray(cachedModels)) setModels(cachedModels);
+        if (Array.isArray(cachedModels)) {
+          const geminiIds = new Set(GEMINI_CATALOG.map(g => g.id));
+          const cleaned = cachedModels.filter((m: any) => !(m.id && m.id.startsWith('gemini-') && !geminiIds.has(m.id)));
+          setModels(cleaned);
+        }
       } catch {}
     };
     window.addEventListener('dev-mode-change', onDevModeChange);
@@ -231,7 +235,13 @@ export default function ChatInterface() {
     if (cached2) {
       try {
         const { models: cachedModels, timestamp } = JSON.parse(cached2);
-        if (Date.now() - timestamp < MODELS_CACHE_AGE) { setModels(cachedModels); setIsModelsLoading(false); return; }
+        if (Date.now() - timestamp < MODELS_CACHE_AGE) {
+          const geminiIds = new Set(GEMINI_CATALOG.map(g => g.id));
+          const cleaned = Array.isArray(cachedModels) ? cachedModels.filter((m: any) => !(m.id && m.id.startsWith('gemini-') && !geminiIds.has(m.id))) : cachedModels;
+          setModels(cleaned);
+          setIsModelsLoading(false);
+          return;
+        }
       } catch {}
     }
 
