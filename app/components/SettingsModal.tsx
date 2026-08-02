@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/app/lib/supabase';
 import { User } from '@supabase/supabase-js';
+import { ResponseStat, ChatParams } from '@/app/components/ChatInterface';
+import { NimModel } from '@/app/lib/nim-models';
 
 const SYSTEM_PROMPT_KEY = 'systemPrompt';
 const DEFAULT_SYSTEM_PROMPT = 'Te egy segítőkész, barátságos AI asszisztens vagy, aki mindig magyarul válaszol. Légy pozitív, bátorító és támogató.';
@@ -10,6 +12,7 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const SHOW_TOKEN_KEY = 'showTokenUsage';
 const EXPORT_FORMAT_KEY = 'exportFormat';
 const DEV_MODE_KEY = 'devMode';
+const MODELS_CACHE_KEY = 'nimModelsCache';
 
 const DEFAULT_MODEL_ID = 'minimax/minimax-m1-80k';
 
@@ -17,9 +20,14 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
+  devMode: boolean;
+  responseHistory: ResponseStat[];
+  models: NimModel[];
+  chatParams: ChatParams;
+  onChatParamsChange: (next: ChatParams) => void;
 }
 
-export default function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, user, devMode, responseHistory, models, chatParams, onChatParamsChange }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,7 +42,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [defaultModel, setDefaultModel] = useState(DEFAULT_MODEL_ID);
   const [showTokenUsage, setShowTokenUsage] = useState(false);
-  const [devMode, setDevMode] = useState(false);
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json' | 'clipboard'>('markdown');
   const [memories, setMemories] = useState<{id: string; content: string}[]>([]);
   const [quickTopics, setQuickTopics] = useState<{id: string; topic: string}[]>([]);
@@ -42,6 +49,13 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [cacheSize, setCacheSize] = useState<number | null>(null);
+
+  const [catalogJson, setCatalogJson] = useState('');
+  const [catalogSaved, setCatalogSaved] = useState(false);
+  const [debugResult, setDebugResult] = useState<any>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [localData, setLocalData] = useState<{ key: string; value: string }[]>([]);
+  const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -53,9 +67,6 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
       const savedToken = localStorage.getItem(SHOW_TOKEN_KEY);
       if (savedToken) setShowTokenUsage(savedToken === 'true');
-
-      const savedDevMode = localStorage.getItem(DEV_MODE_KEY);
-      if (savedDevMode) setDevMode(savedDevMode === 'true');
 
       const savedExport = localStorage.getItem(EXPORT_FORMAT_KEY);
       if (savedExport) setExportFormat(savedExport as any);
@@ -227,6 +238,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     { id: 'download', label: 'Letöltés', icon: '\uD83D\uDCE5' },
     { id: 'account', label: 'Fiók', icon: '\uD83D\uDC64' },
     { id: 'appearance', label: 'Megjelenés', icon: '\uD83C\uDFA8' },
+    { id: 'dev', label: 'Dev', icon: '\uD83D\uDD27' },
   ];
 
   return (
@@ -291,7 +303,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     <div className="text-sm" style={{ color: 'var(--fg-muted)' }}>Extra modellek a választóban + teljesítmény statisztikák (TTFT, tok/s)</div>
                   </div>
                   <button
-                    onClick={() => setDevMode(!devMode)}
+                    onClick={() => { const v = !devMode; localStorage.setItem(DEV_MODE_KEY, String(v)); window.dispatchEvent(new CustomEvent('dev-mode-change', { detail: v })); }}
                     className={`w-12 h-6 rounded-full transition-colors`}
                     style={{ background: devMode ? 'var(--accent)' : 'var(--border)' }}
                   >
@@ -531,6 +543,225 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       {navigator.onLine ? 'Online' : 'Offline'}
                     </span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'dev' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-medium mb-1" style={{ color: 'var(--fg)' }}>Fejlesztői mód</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm" style={{ color: 'var(--fg-muted)' }}>Extra modellek + statisztikák a chatben</div>
+                    <button
+                      onClick={() => { const v = !devMode; localStorage.setItem(DEV_MODE_KEY, String(v)); window.dispatchEvent(new CustomEvent('dev-mode-change', { detail: v })); }}
+                      className={`w-12 h-6 rounded-full transition-colors`}
+                      style={{ background: devMode ? 'var(--accent)' : 'var(--border)' }}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full transition-transform ${devMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--fg-muted)' }}>A váltás a bezárás után azonnal hat (oldal újratöltés nélkül).</p>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Válasz előzmények ({responseHistory.length})</h3>
+                  {responseHistory.length === 0 ? (
+                    <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Még nincs rögzített válasz. Küldj egy üzenetet, és a statisztikák itt is megmaradnak.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {responseHistory.map((r) => (
+                        <div key={r.id} className="rounded-xl overflow-hidden" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                          <button
+                            onClick={() => setExpandedStats(prev => { const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })}
+                            className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.error ? '' : ''}`} style={{ background: r.error ? 'var(--danger)' : r.aborted ? '#f59e0b' : 'var(--success)' }} />
+                              <span className="text-sm truncate" style={{ color: 'var(--fg)' }}>{r.model.split('/').pop()}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>{new Date(r.timestamp).toLocaleTimeString('hu-HU')}</span>
+                              <span className="text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>{r.ttft ? `${(r.ttft / 1000).toFixed(2)}s` : '—'}</span>
+                              <span className="text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>{r.tokensPerSec.toFixed(0)} t/s</span>
+                            </div>
+                          </button>
+                          {expandedStats.has(r.id) && (
+                            <div className="px-3 pb-2.5 text-[11px] font-mono space-y-0.5" style={{ color: 'var(--fg-muted)', background: 'var(--surface-hover)' }}>
+                              <div>Modell: {r.model}</div>
+                              <div>Időpont: {new Date(r.timestamp).toLocaleString('hu-HU')}</div>
+                              <div>TTFT: {(r.ttft / 1000).toFixed(2)}s | Teljes idő: {r.elapsed.toFixed(2)}s</div>
+                              <div>Tokenek: {r.tokens} (becsült: {Math.round(r.chars / 4)} | karakter: {r.chars})</div>
+                              <div>Sebesség: {r.tokensPerSec.toFixed(1)} tok/s</div>
+                              {r.fallbackModel && <div>Fallback modell: {r.fallbackModel}</div>}
+                              {r.aborted && <div>Állapot: megszakítva</div>}
+                              {r.error && <div style={{ color: 'var(--danger)' }}>Hiba: {r.error}</div>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>API paraméterek</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Temperature ({chatParams.temperature})</label>
+                      <input type="range" min={0} max={2} step={0.1} value={chatParams.temperature}
+                        onChange={(e) => onChatParamsChange({ ...chatParams, temperature: Number(e.target.value) })}
+                        className="w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Top P ({chatParams.topP})</label>
+                      <input type="range" min={0} max={1} step={0.05} value={chatParams.topP}
+                        onChange={(e) => onChatParamsChange({ ...chatParams, topP: Number(e.target.value) })}
+                        className="w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Max token ({chatParams.maxTokens})</label>
+                      <input type="range" min={256} max={8192} step={256} value={chatParams.maxTokens}
+                        onChange={(e) => onChatParamsChange({ ...chatParams, maxTokens: Number(e.target.value) })}
+                        className="w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Frequency penalty ({chatParams.frequencyPenalty})</label>
+                      <input type="range" min={-2} max={2} step={0.1} value={chatParams.frequencyPenalty}
+                        onChange={(e) => onChatParamsChange({ ...chatParams, frequencyPenalty: Number(e.target.value) })}
+                        className="w-full" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--fg-secondary)' }}>Reasoning effort (gondolkodó modelleknél)</label>
+                    <select
+                      value={chatParams.reasoningEffort}
+                      onChange={(e) => onChatParamsChange({ ...chatParams, reasoningEffort: e.target.value as any })}
+                      className="w-full px-3 py-2 rounded-xl text-sm"
+                      style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      <option value="high">high</option>
+                      <option value="medium">medium</option>
+                      <option value="low">low</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Modell katalógus</h3>
+                  <div className="text-xs mb-2" style={{ color: 'var(--fg-muted)' }}>Szerkeszd a modellek listáját (JSON). Mentés után a választó frissül.</div>
+                  <textarea
+                    value={catalogJson}
+                    onChange={(e) => { setCatalogJson(e.target.value); setCatalogSaved(false); }}
+                    rows={10}
+                    spellCheck={false}
+                    className="w-full px-3 py-2.5 rounded-2xl resize-none text-[11px] font-mono"
+                    style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => setCatalogJson(JSON.stringify(models, null, 2))}
+                      className="px-3 py-2 rounded-xl text-xs font-medium" style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      Aktuális betöltése
+                    </button>
+                    <button
+                      onClick={() => {
+                        try {
+                          const parsed = JSON.parse(catalogJson);
+                          if (!Array.isArray(parsed)) throw new Error('tömb kell');
+                          localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ models: parsed, timestamp: Date.now() }));
+                          window.dispatchEvent(new CustomEvent('models-cache-updated'));
+                          setCatalogSaved(true);
+                          setTimeout(() => setCatalogSaved(false), 2000);
+                        } catch (err: any) {
+                          alert(`Érvénytelen JSON: ${err.message}`);
+                        }
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-glass)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                    >
+                      {catalogSaved ? 'Mentve!' : 'Mentés'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>Diagnosztika</h3>
+                  <button
+                    onClick={async () => {
+                      setDebugLoading(true);
+                      try {
+                        const res = await fetch('/api/debug');
+                        setDebugResult(await res.json());
+                      } catch (e: any) {
+                        setDebugResult({ error: e?.message || 'hiba' });
+                      }
+                      setDebugLoading(false);
+                    }}
+                    disabled={debugLoading}
+                    className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50" style={{ background: 'var(--accent-glass)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                  >
+                    {debugLoading ? 'Futtatás...' : 'Futtatás'}
+                  </button>
+                  {debugResult && (
+                    <div className="mt-2 text-[11px] font-mono space-y-1 p-3 rounded-xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-muted)' }}>
+                      {debugResult.error && <div style={{ color: 'var(--danger)' }}>Hiba: {debugResult.error}</div>}
+                      {debugResult.envStatus && (
+                        <div className="space-y-0.5">
+                          <div className="font-semibold" style={{ color: 'var(--fg)' }}>Környezeti változók:</div>
+                          {Object.entries(debugResult.envStatus).map(([k, v]) => (
+                            <div key={k}>{k}: <span style={{ color: v ? 'var(--success)' : 'var(--danger)' }}>{v ? 'beállítva' : 'hiányzik'}</span></div>
+                          ))}
+                        </div>
+                      )}
+                      {debugResult.nimError && <div style={{ color: 'var(--danger)' }}>NIM: {debugResult.nimError}</div>}
+                      {debugResult.nimModelCount !== undefined && <div>NIM modellek száma: {debugResult.nimModelCount}</div>}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2" style={{ color: 'var(--fg)' }}>LocalStorage adatok</h3>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => setLocalData(Object.keys(localStorage).map(k => ({ key: k, value: localStorage.getItem(k) || '' })))}
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium" style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      Listázás
+                    </button>
+                    <button
+                      onClick={() => {
+                        const all = Object.keys(localStorage).reduce((acc, k) => { acc[k] = localStorage.getItem(k) || ''; return acc; }, {} as Record<string, string>);
+                        const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = `clawini-settings-${new Date().toISOString().slice(0, 10)}.json`;
+                        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium" style={{ background: 'var(--input-bg)', color: 'var(--fg-secondary)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      Összes exportálása
+                    </button>
+                  </div>
+                  {localData.length > 0 && (
+                    <div className="space-y-1.5">
+                      {localData.map((d) => (
+                        <div key={d.key} className="flex items-center gap-2 px-2.5 py-2 rounded-xl" style={{ background: 'var(--input-bg)' }}>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>{d.key}</div>
+                            <div className="text-[10px] font-mono truncate" style={{ color: 'var(--fg-muted)' }}>{d.value.slice(0, 120)}{d.value.length > 120 ? '...' : ''}</div>
+                          </div>
+                          <button
+                            onClick={() => { localStorage.removeItem(d.key); setLocalData(prev => prev.filter(x => x.key !== d.key)); }}
+                            className="px-2 py-1 rounded-lg text-[10px] flex-shrink-0" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}
+                          >
+                            Törlés
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -26,6 +26,37 @@ const MODELS_CACHE_AGE = 1000 * 60 * 30;
 const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 const DEV_MODE_KEY = 'devMode';
+const CHAT_PARAMS_KEY = 'chatParams';
+
+export interface ResponseStat {
+  id: string;
+  model: string;
+  timestamp: number;
+  elapsed: number;
+  ttft: number;
+  tokensPerSec: number;
+  tokens: number;
+  chars: number;
+  fallbackModel?: string;
+  aborted?: boolean;
+  error?: string;
+}
+
+export interface ChatParams {
+  temperature: number;
+  maxTokens: number;
+  topP: number;
+  frequencyPenalty: number;
+  reasoningEffort: 'high' | 'medium' | 'low';
+}
+
+const DEFAULT_CHAT_PARAMS: ChatParams = {
+  temperature: 0.7,
+  maxTokens: 4096,
+  topP: 0.9,
+  frequencyPenalty: 0.3,
+  reasoningEffort: 'high',
+};
 
 const MODEL_SHEET_OPTIONS = [
   { tier: 'normal', label: 'Normál', id: 'minimaxai/minimax-m3' },
@@ -79,6 +110,9 @@ export default function ChatInterface() {
   const [thinkingContent, setThinkingContent] = useState<string>('');
   const [devMode, setDevMode] = useState(false);
   const [streamStats, setStreamStats] = useState<{ ttft: number; tokensPerSec: number; elapsed: number } | null>(null);
+  const [lastResponse, setLastResponse] = useState<ResponseStat | null>(null);
+  const [responseHistory, setResponseHistory] = useState<ResponseStat[]>([]);
+  const [chatParams, setChatParams] = useState<ChatParams>(DEFAULT_CHAT_PARAMS);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -87,6 +121,9 @@ export default function ChatInterface() {
   const streamStartRef = useRef(0);
   const firstTokenAtRef = useRef<number | null>(null);
   const streamCharsRef = useRef(0);
+  const usageTokensRef = useRef(0);
+  const fallbackModelRef = useRef<string | undefined>(undefined);
+  const sendModelRef = useRef<string>('');
 
   const wrapWithThinking = (content: string, thinkingText: string) => {
     if (!thinkingText) return content;
@@ -121,6 +158,33 @@ export default function ChatInterface() {
     if (savedWebSearch) setWebSearchMode(savedWebSearch);
     setThinking(localStorage.getItem('thinking') === 'true');
     setDevMode(localStorage.getItem(DEV_MODE_KEY) === 'true');
+    try {
+      const p = JSON.parse(localStorage.getItem(CHAT_PARAMS_KEY) || '');
+      if (p) setChatParams({ ...DEFAULT_CHAT_PARAMS, ...p });
+    } catch {}
+  }, []);
+
+  const handleChatParamsChange = useCallback((next: ChatParams) => {
+    setChatParams(next);
+    localStorage.setItem(CHAT_PARAMS_KEY, JSON.stringify(next));
+  }, []);
+
+  useEffect(() => {
+    const onDevModeChange = (e: Event) => {
+      setDevMode(Boolean((e as CustomEvent).detail));
+    };
+    const onModelsCacheUpdated = () => {
+      try {
+        const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
+        if (Array.isArray(cachedModels)) setModels(cachedModels);
+      } catch {}
+    };
+    window.addEventListener('dev-mode-change', onDevModeChange);
+    window.addEventListener('models-cache-updated', onModelsCacheUpdated);
+    return () => {
+      window.removeEventListener('dev-mode-change', onDevModeChange);
+      window.removeEventListener('models-cache-updated', onModelsCacheUpdated);
+    };
   }, []);
 
   // Load models
@@ -289,11 +353,13 @@ export default function ChatInterface() {
     streamStartRef.current = performance.now();
     firstTokenAtRef.current = null;
     streamCharsRef.current = 0;
+    usageTokensRef.current = 0;
+    fallbackModelRef.current = response.headers.get('x-fallback-model') || undefined;
 
     const updateStats = () => {
       const now = performance.now();
       const ttft = firstTokenAtRef.current ? firstTokenAtRef.current - streamStartRef.current : null;
-      const tokens = Math.round(streamCharsRef.current / 4);
+      const tokens = usageTokensRef.current || Math.round(streamCharsRef.current / 4);
       const elapsed = firstTokenAtRef.current ? (now - firstTokenAtRef.current) / 1000 : 0;
       setStreamStats(prev => ({
         ttft: ttft ?? prev?.ttft ?? 0,
@@ -344,6 +410,7 @@ export default function ChatInterface() {
             if (t.startsWith('data: ')) {
               try {
                 const parsed = JSON.parse(t.slice(6));
+                if (parsed.usage?.completion_tokens) usageTokensRef.current = parsed.usage.completion_tokens;
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
                 if (delta?.content) {
@@ -355,6 +422,7 @@ export default function ChatInterface() {
             } else if (t.startsWith('{')) {
               try {
                 const parsed = JSON.parse(t);
+                if (parsed.usage?.completion_tokens) usageTokensRef.current = parsed.usage.completion_tokens;
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
                 if (delta?.content) {
@@ -376,16 +444,39 @@ export default function ChatInterface() {
     return accumulated;
   }, []);
 
+  const recordResponse = useCallback((model: string, opts?: { aborted?: boolean; error?: string }) => {
+    if (!streamStartRef.current) return null;
+    const now = performance.now();
+    const ttft = firstTokenAtRef.current ? firstTokenAtRef.current - streamStartRef.current : 0;
+    const elapsed = (now - streamStartRef.current) / 1000;
+    const tokens = usageTokensRef.current || Math.round(streamCharsRef.current / 4);
+    const entry: ResponseStat = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      model,
+      timestamp: Date.now(),
+      elapsed,
+      ttft,
+      tokensPerSec: elapsed > 0 ? tokens / elapsed : 0,
+      tokens,
+      chars: streamCharsRef.current,
+      fallbackModel: fallbackModelRef.current,
+      ...opts,
+    };
+    setLastResponse(entry);
+    setResponseHistory(prev => [entry, ...prev].slice(0, 30));
+    return entry;
+  }, []);
+
   const stopStreaming = useCallback(() => {
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
+    recordResponse(sendModelRef.current, { aborted: true });
     setStreamingContent(''); setThinkingContent('');
-    setStreamStats(null);
     setIsLoading(false);
     setRegeneratingId(null);
-  }, []);
+  }, [recordResponse]);
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) { setIsAuthModalOpen(true); return; }
@@ -405,6 +496,8 @@ export default function ChatInterface() {
     setError(null);
     setShowTokenUsage(false);
     setRegeneratingId(null);
+    sendModelRef.current = selectedModelId;
+    streamStartRef.current = 0;
 
     let allMessages: { role: string; content: string; image_url?: string | null }[];
 
@@ -442,7 +535,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) { setStreamingContent(''); setThinkingContent(''); return; }
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, ...chatParams }),
         signal: abort.signal,
       });
 
@@ -462,8 +555,11 @@ export default function ChatInterface() {
           await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
         }
+        recordResponse(selectedModelId, { aborted: true });
         return;
       }
+
+      recordResponse(selectedModelId);
 
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
@@ -485,9 +581,11 @@ export default function ChatInterface() {
           await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
         }
+        recordResponse(selectedModelId, { aborted: true });
         return;
       }
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
+      recordResponse(selectedModelId, { error: msg });
       await addMessage(chatId, 'assistant', `Hiba: ${msg}`);
       setError({ message: msg, timestamp: Date.now(), retryFn: () => { handleSendMessage(content, imageUrls); } });
     } finally {
@@ -497,7 +595,7 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode, thinking, chatParams, recordResponse]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     let chatId = currentChatId;
@@ -582,7 +680,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, ...chatParams }),
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -596,12 +694,14 @@ export default function ChatInterface() {
 
       if (abort.signal.aborted) return;
 
+      recordResponse(selectedModelId);
       setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: accumulatedContent || '' }], selectedModelId));
       await addMessage(currentChatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
     } catch (error: any) {
       setStreamingContent(''); setThinkingContent('');
       if (error?.name === 'AbortError') return;
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
+      recordResponse(selectedModelId, { error: msg });
       setError({ message: msg, timestamp: Date.now(), retryFn: () => handleRegenerate(messageId) });
     } finally {
       if (abortRef.current === abort) {
@@ -610,7 +710,7 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode]);
+  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode, thinking, chatParams, recordResponse]);
 
   const closeBranchToast = useCallback(() => setBranchToast(null), []);
 
@@ -901,6 +1001,30 @@ export default function ChatInterface() {
           />
         </div>
 
+        {devMode && (isLoading ? streamStats : lastResponse) && (
+          <div className="px-3 pb-1.5 flex justify-center">
+            <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-[11px] font-mono animate-fadeIn" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-muted)' }}>
+              {isLoading && streamStats ? (
+                <>
+                  <span>TTFT: {(streamStats.ttft / 1000).toFixed(2)}s</span>
+                  <span>{streamStats.tokensPerSec.toFixed(0)} tok/s</span>
+                  <span>{streamStats.elapsed.toFixed(1)}s</span>
+                </>
+              ) : lastResponse ? (
+                <>
+                  <span style={{ color: lastResponse.error ? 'var(--danger)' : undefined }}>{lastResponse.error ? 'Hiba' : lastResponse.aborted ? 'Megállítva' : 'Válasz'}</span>
+                  <span>{lastResponse.model.split('/').pop()}</span>
+                  <span>TTFT: {(lastResponse.ttft / 1000).toFixed(2)}s</span>
+                  <span>{lastResponse.tokensPerSec.toFixed(0)} tok/s</span>
+                  <span>{lastResponse.tokens} tok</span>
+                  <span>{lastResponse.elapsed.toFixed(1)}s</span>
+                  {lastResponse.fallbackModel && <span>fallback: {lastResponse.fallbackModel}</span>}
+                </>
+              ) : null}
+            </div>
+          </div>
+        )}
+
         <div className="px-3 py-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
           <ChatInput
             onSend={(content, imageUrls) => { handleSendMessage(content, imageUrls); }}
@@ -989,7 +1113,14 @@ export default function ChatInterface() {
       )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user} />
+      <SettingsModal
+        isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user}
+        devMode={devMode}
+        responseHistory={responseHistory}
+        models={models}
+        chatParams={chatParams}
+        onChatParamsChange={handleChatParamsChange}
+      />
     </div>
   );
 }

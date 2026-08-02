@@ -182,7 +182,7 @@ function shouldAutoSearch(query: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, systemPrompt, webSearch, thinking } = await req.json();
+    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
     const modelId = model || 'moonshotai.kimi-k2.5';
 
@@ -489,12 +489,13 @@ export async function POST(req: NextRequest) {
         model: candidate,
         messages: formattedMessages,
         stream: true,
-        max_tokens: 4096,
-        temperature: 0.7,
-        top_p: 0.9,
-        frequency_penalty: 0.3,
+        stream_options: { include_usage: true },
+        max_tokens: Math.min(maxTokens || 4096, 8192),
+        temperature: temperature ?? 0.7,
+        top_p: topP ?? 0.9,
+        frequency_penalty: frequencyPenalty ?? 0.3,
       };
-      if (thinking) body.reasoning_effort = 'high';
+      if (thinking) body.reasoning_effort = reasoningEffort || 'high';
       const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
