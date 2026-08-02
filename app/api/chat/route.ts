@@ -69,6 +69,18 @@ function getFallbackModels(modelId: string): string[] {
   return FALLBACK_CHAIN[modelId] || [modelId];
 }
 
+// Gémi fallback lánc (NVIDIA→Google nincs, csak Gemini belső)
+const GEMINI_FALLBACK_CHAIN: Record<string, string[]> = {
+  'gemini-3.5-flash':        ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'],
+  'gemini-3.1-flash-lite':   ['gemini-3-flash-preview'],
+  'gemini-3-flash-preview':  ['gemini-3.1-flash-lite'],
+  'gemini-flash-latest':     ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'],
+};
+
+function getGeminiFallbacks(modelId: string): string[] {
+  return GEMINI_FALLBACK_CHAIN[modelId] || [];
+}
+
 const SYSTEM_PROMPT_DEFAULT = `## IDENTITY
 You are Marci — a sharp, casual, well-informed 24-year-old (persona). You talk like a smart friend on chat, not a corporate assistant.
 
@@ -497,52 +509,70 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'API key not configured (set GEMINI_API_KEY)' }, { status: 500 });
       }
 
-      const body: Record<string, any> = {
-        model: modelId,
-        messages: formattedMessages,
-        stream: true,
-        max_tokens: Math.min(maxTokens || 4096, 8192),
-        temperature: temperature ?? 0.7,
-        top_p: topP ?? 0.9,
-      };
-      if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+      const candidates = [modelId, ...getGeminiFallbacks(modelId).filter(m => m !== modelId)];
+      let geminiRes: Response | null = null;
+      let usedGemini = modelId;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      for (const candidate of candidates) {
+        const body: Record<string, any> = {
+          model: candidate,
+          messages: formattedMessages,
+          stream: true,
+          max_tokens: Math.min(maxTokens || 4096, 8192),
+          temperature: temperature ?? 0.7,
+          top_p: topP ?? 0.9,
+        };
+        if (thinking) body.reasoning_effort = reasoningEffort || 'high';
 
-      const geminiRes = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GEMINI_API_KEY}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-      if (!geminiRes.ok) {
+        const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GEMINI_API_KEY}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          geminiRes = res;
+          usedGemini = candidate;
+          break;
+        }
+
         let err = '';
-        try { err = await geminiRes.text(); } catch {}
-        const message = geminiRes.status === 401 ? 'API key rejected - check GEMINI_API_KEY'
-          : geminiRes.status === 429 ? 'Rate limited - try again later'
-          : geminiRes.status === 404 ? `Model '${modelId}' not found`
-          : `API error ${geminiRes.status}`;
-        return NextResponse.json({ error: message, details: err }, { status: geminiRes.status });
+        try { err = await res.text(); } catch {}
+
+        if (res.status === 401 || res.status === 429) {
+          const message = res.status === 401 ? 'API key rejected - check GEMINI_API_KEY' : 'Rate limited - try again later';
+          return NextResponse.json({ error: message, details: err }, { status: res.status });
+        }
+
+        if (candidates.indexOf(candidate) < candidates.length - 1) continue;
+
+        const message = res.status === 404 ? `Model '${candidate}' not found` : `API error ${res.status}`;
+        return NextResponse.json({ error: message, details: err }, { status: res.status });
       }
 
-      if (!geminiRes.body) {
+      if (!geminiRes || !geminiRes.body) {
         return NextResponse.json({ error: 'Empty response body' }, { status: 502 });
       }
 
-      return new Response(geminiRes.body, {
-        headers: {
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        },
-      });
+      const geminiHeaders: Record<string, string> = {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      };
+      if (usedGemini !== modelId) {
+        geminiHeaders['X-Fallback-Model'] = usedGemini;
+      }
+
+      return new Response(geminiRes.body, { headers: geminiHeaders });
     }
 
     // --- OPEN-WEIGHT MODELS: NVIDIA NIM chat/completions ---
