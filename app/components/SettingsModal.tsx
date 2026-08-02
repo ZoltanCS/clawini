@@ -600,6 +600,7 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
                               <div>Tokenek: {r.tokens} (becsült: {Math.round(r.chars / 4)} | karakter: {r.chars})</div>
                               <div>Sebesség: {r.tokensPerSec.toFixed(1)} tok/s</div>
                               {r.fallbackModel && <div>Fallback modell: {r.fallbackModel}</div>}
+                              {r.compacted && <div style={{ color: 'var(--accent)' }}>Kompaktálva: {r.compacted.messages} üzenet / {r.compacted.tokens} tok (Kimi összefoglaló)</div>}
                               {r.aborted && <div>Állapot: megszakítva</div>}
                               {r.error && <div style={{ color: 'var(--danger)' }}>Hiba: {r.error}</div>}
                             </div>

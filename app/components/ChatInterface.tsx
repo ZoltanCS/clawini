@@ -38,6 +38,7 @@ export interface ResponseStat {
   tokens: number;
   chars: number;
   fallbackModel?: string;
+  compacted?: { messages: number; tokens: number };
   aborted?: boolean;
   error?: string;
 }
@@ -124,6 +125,7 @@ export default function ChatInterface() {
   const streamCharsRef = useRef(0);
   const usageTokensRef = useRef(0);
   const fallbackModelRef = useRef<string | undefined>(undefined);
+  const compactInfoRef = useRef<{ messages: number; tokens: number } | undefined>(undefined);
   const sendModelRef = useRef<string>('');
 
   const wrapWithThinking = (content: string, thinkingText: string) => {
@@ -393,6 +395,14 @@ export default function ChatInterface() {
     streamCharsRef.current = 0;
     usageTokensRef.current = 0;
     fallbackModelRef.current = response.headers.get('x-fallback-model') || undefined;
+    const compactHeader = response.headers.get('x-compact-info');
+    if (compactHeader) {
+      const [cm, ct] = compactHeader.split(';');
+      const cmN = parseInt(cm, 10);
+      if (!isNaN(cmN) && cmN > 0) compactInfoRef.current = { messages: cmN, tokens: parseInt(ct, 10) || 0 };
+    } else {
+      compactInfoRef.current = undefined;
+    }
 
     const updateStats = () => {
       const now = performance.now();
@@ -498,6 +508,7 @@ export default function ChatInterface() {
       tokens,
       chars: streamCharsRef.current,
       fallbackModel: fallbackModelRef.current,
+      compacted: compactInfoRef.current,
       ...opts,
     };
     setLastResponse(entry);
@@ -1057,6 +1068,7 @@ export default function ChatInterface() {
                   <span>{lastResponse.tokens} tok</span>
                   <span>{lastResponse.elapsed.toFixed(1)}s</span>
                   {lastResponse.fallbackModel && <span>fallback: {lastResponse.fallbackModel}</span>}
+                  {lastResponse.compacted && <span style={{ color: 'var(--accent)' }}>compact: {lastResponse.compacted.messages} üzenet / {lastResponse.compacted.tokens} tok</span>}
                 </>
               ) : null}
             </div>

@@ -65,47 +65,91 @@ RULES:
 
 Do NOT summarize. Do NOT interpret. Just describe. Every pixel matters.`;
 
+
 function getFallbackModels(modelId: string): string[] {
   return FALLBACK_CHAIN[modelId] || [modelId];
 }
 
-// Korlátozza a beküldött konverziós méretét: a rendszerüzenetet és a legutóbbi
-// üzeneteket tartja meg, a régebbieket levágja. Csökkenti a TTFT-t hosszú chatnél.
-const MAX_INPUT_CHARS = 60000; // ~15k token alsó becslés
+// Compact summary: one cheap NIM model (Kimi) condenses older messages.
+const COMPACT_MODEL = 'moonshotai/kimi-k2.5';
+const COMPACT_MAX_CHARS = 200000;
+const COMPACT_MAX_MESSAGES = 100;
+const COMPACT_KEEP_RECENT = 20;
 
-function compactMessages(messages: any[]): any[] {
-  if (messages.length <= 2) return messages;
+function msgText(m: any): string {
+  if (typeof m.content === 'string') return m.content;
+  if (Array.isArray(m.content)) return m.content.map((c: any) => c.text || '').join(' ');
+  return '';
+}
+
+function countMsg(m: any): number {
+  return msgText(m).length;
+}
+
+async function summarizeCompact(messages: any[], apiKey: string): Promise<{ messages: any[]; compactedMessages: number; compactedTokens: number }> {
   const systemMsgs: any[] = [];
   const rest: any[] = [];
   for (const m of messages) {
     if (m.role === 'system') systemMsgs.push(m);
     else rest.push(m);
   }
-  let totalChars = 0;
-  const count = (m: any): number => {
-    if (typeof m.content === 'string') return m.content.length;
-    if (Array.isArray(m.content)) {
-      return m.content.reduce((s: number, c: any) => s + (c.text ? c.text.length : 0), 0);
-    }
-    return 0;
-  };
-  for (const m of [...systemMsgs, ...rest]) totalChars += count(m);
+  const totalChars = [...systemMsgs, ...rest].reduce((s, m) => s + countMsg(m), 0);
+  const overMessages = rest.length > COMPACT_MAX_MESSAGES;
+  const overChars = totalChars > COMPACT_MAX_CHARS;
+  if (!overMessages && !overChars) return { messages, compactedMessages: 0, compactedTokens: 0 };
 
-  const keeps: any[] = [];
-  let used = 0;
-  for (let i = rest.length - 1; i >= 0; i--) {
-    const c = count(rest[i]);
-    if (used + c <= MAX_INPUT_CHARS || keeps.length < 2) {
-      keeps.unshift(rest[i]);
-      used += c;
-    } else {
-      break;
+  const keep = rest.slice(-COMPACT_KEEP_RECENT);
+  const drop = rest.slice(0, Math.max(0, rest.length - COMPACT_KEEP_RECENT));
+  if (drop.length === 0) return { messages, compactedMessages: 0, compactedTokens: 0 };
+
+  let summary = '';
+  const dropText = drop.map((m: any) => m.role + ': ' + msgText(m)).join('\n\n');
+  try {
+    const res = await fetch(NIM_BASE_URL + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: COMPACT_MODEL,
+        messages: [
+          { role: 'system', content: 'Foglald ossze a beszelgetest tomor, hasznos szovegkent. Orizd meg a fontos tenyletek, keresetek, donteseket, kontextust. Irj magyarul, max ~3000 karakter.' },
+          { role: 'user', content: dropText },
+        ],
+        stream: false,
+        max_tokens: 800,
+        temperature: 0.3,
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      summary = data.choices?.[0]?.message?.content || '';
     }
+  } catch {}
+
+  const compactedTokens = Math.round(drop.reduce((s, m) => s + countMsg(m), 0) / 4);
+
+  if (summary) {
+    return {
+      messages: [...systemMsgs, { role: 'system', content: '[Korabbi beszergetes osszefoglalja]\n' + summary.trim() }, ...keep],
+      compactedMessages: drop.length,
+      compactedTokens,
+    };
   }
-  return [...systemMsgs, ...keeps];
+
+  // If the summary fails, keep only the most recent messages (character budget).
+  const budget = COMPACT_MAX_CHARS - systemMsgs.reduce((s, m) => s + countMsg(m), 0);
+  let used = 0;
+  const fallbackKeep: any[] = [];
+  for (let i = rest.length - 1; i >= 0; i--) {
+    const c = countMsg(rest[i]);
+    if (used + c <= budget || fallbackKeep.length < 2) {
+      fallbackKeep.unshift(rest[i]);
+      used += c;
+    } else break;
+  }
+  return { messages: [...systemMsgs, ...fallbackKeep], compactedMessages: 0, compactedTokens: 0 };
 }
 
-// Gémi fallback lánc (NVIDIA→Google nincs, csak Gemini belső)
 const GEMINI_FALLBACK_CHAIN: Record<string, string[]> = {
   'gemini-3.5-flash':        ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'],
   'gemini-3.1-flash-lite':   ['gemini-3-flash-preview'],
@@ -350,8 +394,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Compact: régi üzenetek levágása a bemeneti tokenek korlátozásához (TTFT csökkentés)
-    const chatMessages = compactMessages(formattedMessages);
+    // Compact: régi üzenetek összefoglalása egy olcsó NIM modellel (TTFT csökkentés)
+    const compacted = await summarizeCompact(formattedMessages, NIM_API_KEY);
+    const chatMessages = compacted.messages;
+    const compactInfo = compacted.compactedMessages > 0
+      ? { messages: compacted.compactedMessages, tokens: compacted.compactedTokens }
+      : null;
 
     // --- BEDROCK-RUNTIME PATH: Claude + Nova models use Converse Stream API ---
     if (useBedrockRuntime(modelId)) {
@@ -610,6 +658,9 @@ export async function POST(req: NextRequest) {
       if (usedGemini !== modelId) {
         geminiHeaders['X-Fallback-Model'] = usedGemini;
       }
+      if (compactInfo) {
+        geminiHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
+      }
 
       return new Response(geminiRes.body, { headers: geminiHeaders });
     }
@@ -677,6 +728,9 @@ export async function POST(req: NextRequest) {
     };
     if (usedModel !== modelId) {
       responseHeaders['X-Fallback-Model'] = usedModel;
+    }
+    if (compactInfo) {
+      responseHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
     }
 
     return new Response(nimRes.body, { headers: responseHeaders });
