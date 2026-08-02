@@ -24,11 +24,9 @@ const DEV_CATALOG: NimModel[] = [
 ];
 
 export const GEMINI_CATALOG: NimModel[] = [
-  { id: 'gemini-3.5-flash',        label: 'Gemini 3.5 Flash',        publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Ingyenes, frontier-class Google' },
-  { id: 'gemini-3.1-flash-lite',   label: 'Gemini 3.1 Flash-Lite',   publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, gyors, olcsó' },
-  { id: 'gemini-2.5-flash',        label: 'Gemini 2.5 Flash',        publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, stabil' },
-  { id: 'gemini-2.5-flash-lite',   label: 'Gemini 2.5 Flash-Lite',   publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, leggyorsabb' },
-  { id: 'gemini-3-flash-preview',  label: 'Gemini 3 Flash (prev)',   publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes preview' },
+  { id: 'gemini-3.5-flash',        label: 'Gemini 3.5 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Ingyenes, frontier-class Google' },
+  { id: 'gemini-3.1-flash-lite',   label: 'Gemini 3.1 Flash-Lite', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, gyors, olcsó' },
+  { id: 'gemini-3-flash-preview',  label: 'Gemini 3 Flash (prev)', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes preview' },
 ];
 
 export const NIM_FALLBACK = [...NIM_CATALOG, ...DEV_CATALOG];
