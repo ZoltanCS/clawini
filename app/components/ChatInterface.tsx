@@ -13,7 +13,7 @@ import {
   getTokenUsageColor,
   isOverGCThreshold,
 } from '@/app/lib/tokens';
-import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, getModelById } from '@/app/lib/nim-models';
+import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -262,6 +262,7 @@ export default function ChatInterface() {
   const dropdownGroups = useMemo(() => {
     const main: { id: string; label: string; tier?: string }[] = [];
     const dev: { id: string; label: string }[] = [];
+    const google: { id: string; label: string; tier?: string }[] = GEMINI_CATALOG.map(m => ({ id: m.id, label: m.label, tier: m.tier }));
     if (models.length === 0) {
       main.push(...MODEL_SHEET_OPTIONS);
       if (devMode) dev.push(...DEV_MODEL_OPTIONS);
@@ -277,11 +278,15 @@ export default function ChatInterface() {
       for (const opt of MODEL_SHEET_OPTIONS) if (!main.some(m => m.id === opt.id)) main.push(opt);
       if (devMode) for (const opt of DEV_MODEL_OPTIONS) if (!dev.some(m => m.id === opt.id)) dev.push(opt);
     }
-    return { main, dev };
+    return { main, dev, google };
   }, [models, devMode]);
 
   useEffect(() => {
-    const knownIds: Set<string> = new Set([...MODEL_SHEET_OPTIONS, ...DEV_MODEL_OPTIONS].map(o => o.id));
+    const knownIds: Set<string> = new Set([
+      ...MODEL_SHEET_OPTIONS,
+      ...DEV_MODEL_OPTIONS,
+      ...GEMINI_CATALOG.map(g => g.id),
+    ].map(o => typeof o === 'string' ? o : o.id));
     if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId) && !knownIds.has(selectedModelId)) {
       setSelectedModelId(DEFAULT_NIM_MODEL_ID);
       localStorage.setItem(SELECTED_MODEL_KEY, DEFAULT_NIM_MODEL_ID);
@@ -1094,29 +1099,9 @@ export default function ChatInterface() {
                 </div>
               </div>
             )}
-            {dropdownGroups.main.map(opt => {
-              const selected = opt.id === selectedModelId;
-              return (
-                <button key={opt.id} onClick={() => handleModelChange(opt.id)}
-                  className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-                  style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span>{opt.label}</span>
-                  {selected && (
-                    <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-            {dropdownGroups.dev.length > 0 && (
+            {providerTab === 'google' ? (
               <>
-                <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
-                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Dev</div>
-                {dropdownGroups.dev.map(opt => {
+                {dropdownGroups.google.map(opt => {
                   const selected = opt.id === selectedModelId;
                   return (
                     <button key={opt.id} onClick={() => handleModelChange(opt.id)}
@@ -1134,6 +1119,51 @@ export default function ChatInterface() {
                     </button>
                   );
                 })}
+              </>
+            ) : (
+              <>
+                {dropdownGroups.main.map(opt => {
+              const selected = opt.id === selectedModelId;
+              return (
+                <button key={opt.id} onClick={() => handleModelChange(opt.id)}
+                  className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+                  style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span>{opt.label}</span>
+                  {selected && (
+                    <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+                {dropdownGroups.dev.length > 0 && (
+                  <>
+                    <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
+                    <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Dev</div>
+                    {dropdownGroups.dev.map(opt => {
+                      const selected = opt.id === selectedModelId;
+                      return (
+                        <button key={opt.id} onClick={() => handleModelChange(opt.id)}
+                          className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+                          style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span>{opt.label}</span>
+                          {selected && (
+                            <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </>
             )}
             <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />

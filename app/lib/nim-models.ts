@@ -23,6 +23,12 @@ const DEV_CATALOG: NimModel[] = [
   { id: 'nvidia/nemotron-3-ultra-550b-a55b',  label: 'Nemotron 3 Ultra',    publisher: 'NVIDIA',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
 ];
 
+export const GEMINI_CATALOG: NimModel[] = [
+  { id: 'gemini-2.5-flash',                  label: 'Gemini 2.5 Flash',    publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, olcsó, multimodális' },
+  { id: 'gemini-3.5-flash',                  label: 'Gemini 3.5 Flash',    publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Élenjáró, gyors Google' },
+  { id: 'gemini-2.5-pro',                    label: 'Gemini 2.5 Pro',      publisher: 'Google',     contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Legokosabb Google modell' },
+];
+
 export const NIM_FALLBACK = [...NIM_CATALOG, ...DEV_CATALOG];
 
 export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null> {
