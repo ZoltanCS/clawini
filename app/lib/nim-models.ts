@@ -10,11 +10,10 @@ export interface NimModel {
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'global.amazon.nova-2-lite-v1:0', label: 'Nova 2 Lite',      publisher: 'Amazon',      contextWindow: 300000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Multimodális, gyors, olcsó' },
+  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kép leírás proxy' },
+  { id: 'zai.glm-5',                   label: 'GLM-5',            publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
+  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro',  publisher: 'DeepSeek',    contextWindow: 131072,  supportsVision: false, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens DeepSeek' },
   { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
-  { id: 'eu.anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Anthropic' },
-  { id: 'global.anthropic.claude-opus-4-6-v1', label: 'Claude Opus 4.6', publisher: 'Anthropic', contextWindow: 200000, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens, Anthropic' },
-  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, description: 'Kép leírás proxy' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
@@ -65,7 +64,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const DEFAULT_NIM_MODEL_ID = 'global.amazon.nova-2-lite-v1:0';
+export const DEFAULT_NIM_MODEL_ID = 'minimax.minimax-m2.5';
 export const DEFAULT_GC_MODEL_ID = 'zai.glm-5';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {

@@ -8,8 +8,9 @@ const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
 const CLAUDE_REGION = process.env.AWS_CLAUDE_REGION || 'eu-central-1';
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'moonshotai.kimi-k2.5':     ['zai.glm-5'],
-  'zai.glm-5':                ['zai.glm-5'],
+  'minimax.minimax-m2.5':        ['moonshotai.kimi-k2.5'],
+  'zai.glm-5':                   ['zai.glm-5'],
+  'deepseek-ai/deepseek-v4-pro': ['zai.glm-5'],
 };
 
 function isClaudeModel(id: string): boolean {
@@ -24,7 +25,7 @@ function useBedrockRuntime(id: string): boolean {
   return isClaudeModel(id) || isNovaModel(id);
 }
 
-const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5', 'global.anthropic.claude-opus-4-6-v1', 'eu.anthropic.claude-sonnet-4-6', 'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0']);
+const VISION_MODELS = new Set(['minimax.minimax-m2.5', 'moonshotai.kimi-k2.5']);
 const VISION_PROXY_MODEL = 'minimax.minimax-m2.5';
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.

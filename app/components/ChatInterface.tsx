@@ -27,9 +27,9 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 
 const MODEL_SHEET_OPTIONS = [
-  { tier: 'fast',   label: 'Fast',   id: 'global.amazon.nova-2-lite-v1:0' },
-  { tier: 'normal', label: 'Normal', id: 'eu.anthropic.claude-sonnet-4-6' },
-  { tier: 'smart',  label: 'Smart',  id: 'global.anthropic.claude-opus-4-6-v1' },
+  { tier: 'normal', label: 'Normál', id: 'minimax.minimax-m2.5' },
+  { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5' },
+  { tier: 'ultra',  label: 'Ultra',  id: 'deepseek-ai/deepseek-v4-pro' },
 ] as const;
 
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
@@ -116,15 +116,19 @@ export default function ChatInterface() {
 
     // Migrate old model IDs
     const modelIdMigration: Record<string, string> = {
-      'z-ai/glm-5.3': 'eu.anthropic.claude-sonnet-4-6',
-      'z-ai/glm-5.2': 'eu.anthropic.claude-sonnet-4-6',
-      'zai.glm-4.7': 'eu.anthropic.claude-sonnet-4-6',
-      'zai.glm-5': 'eu.anthropic.claude-sonnet-4-6',
-      'minimax/minimax-m1-80k': 'moonshotai.kimi-k2.5',
-      'minimaxai/minimax-m3': 'moonshotai.kimi-k2.5',
-      'deepseek-ai/deepseek-r1': 'eu.anthropic.claude-sonnet-4-6',
-      'deepseek-ai/deepseek-v4-pro': 'eu.anthropic.claude-sonnet-4-6',
+      'z-ai/glm-5.3': 'zai.glm-5',
+      'z-ai/glm-5.2': 'zai.glm-5',
+      'zai.glm-4.7': 'zai.glm-5',
+      'zai.glm-5': 'zai.glm-5',
+      'minimax/minimax-m1-80k': 'minimax.minimax-m2.5',
+      'minimaxai/minimax-m3': 'minimax.minimax-m2.5',
+      'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-pro',
+      'deepseek-ai/deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
       'moonshotai/kimi-k2.6': 'moonshotai.kimi-k2.5',
+      'global.amazon.nova-2-lite-v1:0': 'minimax.minimax-m2.5',
+      'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0': 'minimax.minimax-m2.5',
+      'eu.anthropic.claude-sonnet-4-6': 'zai.glm-5',
+      'global.anthropic.claude-opus-4-6-v1': 'deepseek-ai/deepseek-v4-pro',
     };
     const migratedModel = savedModel ? (modelIdMigration[savedModel] || savedModel) : null;
     if (migratedModel) {
