@@ -6,12 +6,9 @@ export const dynamic = 'force-dynamic';
 const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
 const CLAUDE_REGION = process.env.AWS_CLAUDE_REGION || 'eu-central-1';
 
-// Provider chain: tries each endpoint+key until one accepts the request
-const NIM_PROVIDERS = [
-  { name: 'bedrock-mantle', baseUrl: `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`, apiKey: process.env.AWS_BEDROCK_API_KEY },
-  { name: 'nvidia-nim',     baseUrl: 'https://integrate.api.nvidia.com/v1',                   apiKey: process.env.NVIDIA_NIM_API_KEY },
-  { name: 'openrouter',     baseUrl: 'https://openrouter.ai/api/v1',                          apiKey: process.env.OPENROUTER_API_KEY },
-].filter(p => p.apiKey);
+// NVIDIA NIM (OpenAI-compatible endpoint)
+const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
   'minimaxai/minimax-m3':          ['moonshotai.kimi-k2.5'],
@@ -227,10 +224,9 @@ export async function POST(req: NextRequest) {
     });
     formattedMessages.unshift({ role: 'system', content: systemContent + webContext });
 
-    if (NIM_PROVIDERS.length === 0) {
-      return NextResponse.json({ error: 'API key not configured (set AWS_BEDROCK_API_KEY, NVIDIA_NIM_API_KEY or OPENROUTER_API_KEY)' }, { status: 500 });
+    if (!NIM_API_KEY) {
+      return NextResponse.json({ error: 'API key not configured (set NVIDIA_NIM_API_KEY)' }, { status: 500 });
     }
-    const primaryProvider = NIM_PROVIDERS[0];
 
     // Vision proxy: if model doesn't support vision but user sent images
     if (!VISION_MODELS.has(modelId)) {
@@ -247,11 +243,11 @@ export async function POST(req: NextRequest) {
         ];
 
         try {
-          const visionRes = await fetch(`${primaryProvider.baseUrl}/chat/completions`, {
+          const visionRes = await fetch(`${NIM_BASE_URL}/chat/completions`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${primaryProvider.apiKey}`,
+              'Authorization': `Bearer ${NIM_API_KEY}`,
             },
             body: JSON.stringify({
               model: VISION_PROXY_MODEL,
@@ -480,67 +476,58 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- OPEN-WEIGHT MODELS: chat/completions through provider chain ---
+    // --- OPEN-WEIGHT MODELS: NVIDIA NIM chat/completions ---
     const candidates = [modelId, ...getFallbackModels(modelId).filter(m => m !== modelId)];
     let nimRes: Response | null = null;
     let usedModel = modelId;
-    let usedProvider = primaryProvider.name;
-    let authErrors: string[] = [];
 
-    outer: for (const candidate of candidates) {
-      for (const provider of NIM_PROVIDERS) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
+    for (const candidate of candidates) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-        const body: Record<string, any> = {
-          model: candidate,
-          messages: formattedMessages,
-          stream: true,
-          max_tokens: 4096,
-          temperature: 0.7,
-          top_p: 0.9,
-          frequency_penalty: 0.3,
-        };
-        if (thinking) body.reasoning_effort = 'high';
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${provider.apiKey}`,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+      const body: Record<string, any> = {
+        model: candidate,
+        messages: formattedMessages,
+        stream: true,
+        max_tokens: 4096,
+        temperature: 0.7,
+        top_p: 0.9,
+        frequency_penalty: 0.3,
+      };
+      if (thinking) body.reasoning_effort = 'high';
+      const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${NIM_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-        if (res.ok) {
-          nimRes = res;
-          usedModel = candidate;
-          usedProvider = provider.name;
-          break outer;
-        }
+      if (res.ok) {
+        nimRes = res;
+        usedModel = candidate;
+        break;
+      }
 
-        let err = '';
-        try { err = await res.text(); } catch {}
+      let err = '';
+      try { err = await res.text(); } catch {}
 
-        if (res.status === 401 || res.status === 429) {
-          authErrors.push(`${provider.name}: ${res.status} ${err.slice(0, 200)}`);
-          continue;
-        }
-
-        if (provider !== NIM_PROVIDERS[NIM_PROVIDERS.length - 1]) continue;
-
-        const message = res.status === 404 ? `Model '${candidate}' not found` : `API error ${res.status}`;
+      if (res.status === 401 || res.status === 429) {
+        const message = res.status === 401 ? 'API key rejected - check NVIDIA_NIM_API_KEY' : 'Rate limited - try again later';
         return NextResponse.json({ error: message, details: err }, { status: res.status });
       }
+
+      if (candidates.indexOf(candidate) < candidates.length - 1) continue;
+
+      const message = res.status === 404 ? `Model '${candidate}' not found` : `API error ${res.status}`;
+      return NextResponse.json({ error: message, details: err }, { status: res.status });
     }
 
     if (!nimRes || !nimRes.body) {
-      const lastAuth = authErrors[authErrors.length - 1] || 'unknown';
-      const message = authErrors.some(e => e.includes('429'))
-        ? 'Rate limited - try again later'
-        : 'API key rejected - check AWS_BEDROCK_API_KEY / NVIDIA_NIM_API_KEY';
-      return NextResponse.json({ error: message, details: lastAuth }, { status: 401 });
+      return NextResponse.json({ error: 'Empty response body' }, { status: 502 });
     }
 
     const responseHeaders: Record<string, string> = {
@@ -551,9 +538,6 @@ export async function POST(req: NextRequest) {
     };
     if (usedModel !== modelId) {
       responseHeaders['X-Fallback-Model'] = usedModel;
-    }
-    if (usedProvider !== primaryProvider.name) {
-      responseHeaders['X-Provider'] = usedProvider;
     }
 
     return new Response(nimRes.body, { headers: responseHeaders });

@@ -13,7 +13,7 @@ interface MessageListProps {
   thinkingContent?: string;
   isThinking?: boolean;
   devMode?: boolean;
-  streamStats?: { ttft: number; tokensPerSec: number; elapsed: number; provider?: string } | null;
+  streamStats?: { ttft: number; tokensPerSec: number; elapsed: number } | null;
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
   onEdit?: (messageId: string) => void;
@@ -199,7 +199,6 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
                 <div className="flex items-center gap-3 mt-2 text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>
                   <span>TTFT: {(streamStats.ttft / 1000).toFixed(2)}s</span>
                   <span>{streamStats.tokensPerSec.toFixed(0)} tok/s</span>
-                  {streamStats.provider && <span>{streamStats.provider}</span>}
                 </div>
               )}
             </div>

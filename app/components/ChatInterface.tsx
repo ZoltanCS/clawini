@@ -78,7 +78,7 @@ export default function ChatInterface() {
   const [thinking, setThinking] = useState(false);
   const [thinkingContent, setThinkingContent] = useState<string>('');
   const [devMode, setDevMode] = useState(false);
-  const [streamStats, setStreamStats] = useState<{ ttft: number; tokensPerSec: number; elapsed: number; provider?: string } | null>(null);
+  const [streamStats, setStreamStats] = useState<{ ttft: number; tokensPerSec: number; elapsed: number } | null>(null);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -289,7 +289,6 @@ export default function ChatInterface() {
     streamStartRef.current = performance.now();
     firstTokenAtRef.current = null;
     streamCharsRef.current = 0;
-    const provider = response.headers.get('x-provider') || undefined;
 
     const updateStats = () => {
       const now = performance.now();
@@ -300,7 +299,6 @@ export default function ChatInterface() {
         ttft: ttft ?? prev?.ttft ?? 0,
         tokensPerSec: elapsed > 0 ? tokens / elapsed : 0,
         elapsed: (now - streamStartRef.current) / 1000,
-        provider: provider || prev?.provider,
       }));
     };
 
