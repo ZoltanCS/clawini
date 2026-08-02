@@ -69,6 +69,42 @@ function getFallbackModels(modelId: string): string[] {
   return FALLBACK_CHAIN[modelId] || [modelId];
 }
 
+// Korlátozza a beküldött konverziós méretét: a rendszerüzenetet és a legutóbbi
+// üzeneteket tartja meg, a régebbieket levágja. Csökkenti a TTFT-t hosszú chatnél.
+const MAX_INPUT_CHARS = 60000; // ~15k token alsó becslés
+
+function compactMessages(messages: any[]): any[] {
+  if (messages.length <= 2) return messages;
+  const systemMsgs: any[] = [];
+  const rest: any[] = [];
+  for (const m of messages) {
+    if (m.role === 'system') systemMsgs.push(m);
+    else rest.push(m);
+  }
+  let totalChars = 0;
+  const count = (m: any): number => {
+    if (typeof m.content === 'string') return m.content.length;
+    if (Array.isArray(m.content)) {
+      return m.content.reduce((s: number, c: any) => s + (c.text ? c.text.length : 0), 0);
+    }
+    return 0;
+  };
+  for (const m of [...systemMsgs, ...rest]) totalChars += count(m);
+
+  const keeps: any[] = [];
+  let used = 0;
+  for (let i = rest.length - 1; i >= 0; i--) {
+    const c = count(rest[i]);
+    if (used + c <= MAX_INPUT_CHARS || keeps.length < 2) {
+      keeps.unshift(rest[i]);
+      used += c;
+    } else {
+      break;
+    }
+  }
+  return [...systemMsgs, ...keeps];
+}
+
 // Gémi fallback lánc (NVIDIA→Google nincs, csak Gemini belső)
 const GEMINI_FALLBACK_CHAIN: Record<string, string[]> = {
   'gemini-3.5-flash':        ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'],
@@ -314,6 +350,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Compact: régi üzenetek levágása a bemeneti tokenek korlátozásához (TTFT csökkentés)
+    const chatMessages = compactMessages(formattedMessages);
+
     // --- BEDROCK-RUNTIME PATH: Claude + Nova models use Converse Stream API ---
     if (useBedrockRuntime(modelId)) {
       const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
@@ -516,7 +555,7 @@ export async function POST(req: NextRequest) {
       for (const candidate of candidates) {
         const body: Record<string, any> = {
           model: candidate,
-          messages: formattedMessages,
+          messages: chatMessages,
           stream: true,
           max_tokens: Math.min(maxTokens || 4096, 8192),
           temperature: temperature ?? 0.7,
@@ -586,7 +625,7 @@ export async function POST(req: NextRequest) {
 
       const body: Record<string, any> = {
         model: candidate,
-        messages: formattedMessages,
+        messages: chatMessages,
         stream: true,
         stream_options: { include_usage: true },
         max_tokens: Math.min(maxTokens || 4096, 8192),
