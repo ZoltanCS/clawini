@@ -10,13 +10,20 @@ export interface NimModel {
 }
 
 const NIM_CATALOG: NimModel[] = [
-  { id: 'minimax.minimax-m2.5',        label: 'MiniMax M2.5',     publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kép leírás proxy' },
-  { id: 'zai.glm-5',                   label: 'GLM-5',            publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
-  { id: 'deepseek-ai/deepseek-v4-pro', label: 'DeepSeek V4 Pro',  publisher: 'DeepSeek',    contextWindow: 131072,  supportsVision: false, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens DeepSeek' },
-  { id: 'moonshotai.kimi-k2.5',        label: 'Kimi K2.5',        publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
+  { id: 'minimaxai/minimax-m3',            label: 'MiniMax M3',      publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, multimodális' },
+  { id: 'zai.glm-5',                       label: 'GLM-5',           publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
+  { id: 'deepseek-ai/deepseek-v4-pro',     label: 'DeepSeek V4 Pro', publisher: 'DeepSeek',    contextWindow: 131072,  supportsVision: false, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens DeepSeek' },
+  { id: 'moonshotai.kimi-k2.5',            label: 'Kimi K2.5',       publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
 ];
 
-export const NIM_FALLBACK = NIM_CATALOG;
+const DEV_CATALOG: NimModel[] = [
+  { id: 'mistralai/mistral-medium-3.5-128b',  label: 'Mistral Medium 3.5',  publisher: 'Mistral',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
+  { id: 'thinkingmachines/inkling',           label: 'Inkling',             publisher: 'Thinking Machines', contextWindow: 131072, supportsVision: false, supportsThinking: true },
+  { id: 'deepseek-ai/deepseek-v4-flash',      label: 'DeepSeek V4 Flash',   publisher: 'DeepSeek', contextWindow: 131072, supportsVision: false, supportsThinking: true },
+  { id: 'nvidia/nemotron-3-ultra-550b-a55b',  label: 'Nemotron 3 Ultra',    publisher: 'NVIDIA',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
+];
+
+export const NIM_FALLBACK = [...NIM_CATALOG, ...DEV_CATALOG];
 
 export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null> {
   try {
@@ -64,7 +71,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
   }
 }
 
-export const DEFAULT_NIM_MODEL_ID = 'minimax.minimax-m2.5';
+export const DEFAULT_NIM_MODEL_ID = 'minimaxai/minimax-m3';
 export const DEFAULT_GC_MODEL_ID = 'zai.glm-5';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {

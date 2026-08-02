@@ -9,6 +9,7 @@ const DEFAULT_SYSTEM_PROMPT = 'Te egy segítőkész, barátságos AI asszisztens
 const SELECTED_MODEL_KEY = 'selectedModel';
 const SHOW_TOKEN_KEY = 'showTokenUsage';
 const EXPORT_FORMAT_KEY = 'exportFormat';
+const DEV_MODE_KEY = 'devMode';
 
 const DEFAULT_MODEL_ID = 'minimax/minimax-m1-80k';
 
@@ -33,6 +34,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [defaultModel, setDefaultModel] = useState(DEFAULT_MODEL_ID);
   const [showTokenUsage, setShowTokenUsage] = useState(false);
+  const [devMode, setDevMode] = useState(false);
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json' | 'clipboard'>('markdown');
   const [memories, setMemories] = useState<{id: string; content: string}[]>([]);
   const [quickTopics, setQuickTopics] = useState<{id: string; topic: string}[]>([]);
@@ -51,6 +53,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
       const savedToken = localStorage.getItem(SHOW_TOKEN_KEY);
       if (savedToken) setShowTokenUsage(savedToken === 'true');
+
+      const savedDevMode = localStorage.getItem(DEV_MODE_KEY);
+      if (savedDevMode) setDevMode(savedDevMode === 'true');
 
       const savedExport = localStorage.getItem(EXPORT_FORMAT_KEY);
       if (savedExport) setExportFormat(savedExport as any);
@@ -190,6 +195,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     localStorage.setItem(SELECTED_MODEL_KEY, defaultModel);
     localStorage.setItem(SHOW_TOKEN_KEY, String(showTokenUsage));
     localStorage.setItem(EXPORT_FORMAT_KEY, exportFormat);
+    localStorage.setItem(DEV_MODE_KEY, String(devMode));
 
     const { error } = await supabase
       .from('profiles')
@@ -276,6 +282,20 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     style={{ background: showTokenUsage ? 'var(--accent)' : 'var(--border)' }}
                   >
                     <div className={`w-5 h-5 bg-white rounded-full transition-transform ${showTokenUsage ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium" style={{ color: 'var(--fg)' }}>Fejlesztői mód</div>
+                    <div className="text-sm" style={{ color: 'var(--fg-muted)' }}>Extra modellek a választóban + teljesítmény statisztikák (TTFT, tok/s)</div>
+                  </div>
+                  <button
+                    onClick={() => setDevMode(!devMode)}
+                    className={`w-12 h-6 rounded-full transition-colors`}
+                    style={{ background: devMode ? 'var(--accent)' : 'var(--border)' }}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${devMode ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
 

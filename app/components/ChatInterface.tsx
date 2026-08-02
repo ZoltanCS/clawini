@@ -25,11 +25,19 @@ const MODELS_CACHE_KEY = 'nimModelsCache';
 const MODELS_CACHE_AGE = 1000 * 60 * 30;
 const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
+const DEV_MODE_KEY = 'devMode';
 
 const MODEL_SHEET_OPTIONS = [
-  { tier: 'normal', label: 'Normál', id: 'minimax.minimax-m2.5' },
+  { tier: 'normal', label: 'Normál', id: 'minimaxai/minimax-m3' },
   { tier: 'smart',  label: 'Okos',   id: 'zai.glm-5' },
   { tier: 'ultra',  label: 'Ultra',  id: 'deepseek-ai/deepseek-v4-pro' },
+] as const;
+
+const DEV_MODEL_OPTIONS = [
+  { label: 'Mistral Medium 3.5',  id: 'mistralai/mistral-medium-3.5-128b' },
+  { label: 'Inkling',             id: 'thinkingmachines/inkling' },
+  { label: 'DeepSeek V4 Flash',   id: 'deepseek-ai/deepseek-v4-flash' },
+  { label: 'Nemotron 3 Ultra',    id: 'nvidia/nemotron-3-ultra-550b-a55b' },
 ] as const;
 
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
@@ -69,11 +77,16 @@ export default function ChatInterface() {
   const [webSearchMode, setWebSearchMode] = useState<'off' | 'auto' | 'on'>('off');
   const [thinking, setThinking] = useState(false);
   const [thinkingContent, setThinkingContent] = useState<string>('');
+  const [devMode, setDevMode] = useState(false);
+  const [streamStats, setStreamStats] = useState<{ ttft: number; tokensPerSec: number; elapsed: number } | null>(null);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
   const thinkingContentRef = useRef<string>('');
   const pendingChatIdRef = useRef<string | null>(null);
+  const streamStartRef = useRef(0);
+  const firstTokenAtRef = useRef<number | null>(null);
+  const streamCharsRef = useRef(0);
 
   const wrapWithThinking = (content: string, thinkingText: string) => {
     if (!thinkingText) return content;
@@ -107,6 +120,7 @@ export default function ChatInterface() {
     const savedWebSearch = localStorage.getItem('webSearchMode') as 'off' | 'auto' | 'on' | null;
     if (savedWebSearch) setWebSearchMode(savedWebSearch);
     setThinking(localStorage.getItem('thinking') === 'true');
+    setDevMode(localStorage.getItem(DEV_MODE_KEY) === 'true');
   }, []);
 
   // Load models
@@ -120,8 +134,9 @@ export default function ChatInterface() {
       'z-ai/glm-5.2': 'zai.glm-5',
       'zai.glm-4.7': 'zai.glm-5',
       'zai.glm-5': 'zai.glm-5',
-      'minimax/minimax-m1-80k': 'minimax.minimax-m2.5',
-      'minimaxai/minimax-m3': 'minimax.minimax-m2.5',
+      'minimax/minimax-m1-80k': 'minimaxai/minimax-m3',
+      'minimaxai/minimax-m3': 'minimaxai/minimax-m3',
+      'minimax.minimax-m2.5': 'minimaxai/minimax-m3',
       'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-pro',
       'deepseek-ai/deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
       'moonshotai/kimi-k2.6': 'moonshotai.kimi-k2.5',
@@ -271,6 +286,21 @@ export default function ChatInterface() {
     let buffer = '';
     let rafPending = false;
     let thinkingRafPending = false;
+    streamStartRef.current = performance.now();
+    firstTokenAtRef.current = null;
+    streamCharsRef.current = 0;
+
+    const updateStats = () => {
+      const now = performance.now();
+      const ttft = firstTokenAtRef.current ? firstTokenAtRef.current - streamStartRef.current : null;
+      const tokens = Math.round(streamCharsRef.current / 4);
+      const elapsed = firstTokenAtRef.current ? (now - firstTokenAtRef.current) / 1000 : 0;
+      setStreamStats(prev => ({
+        ttft: ttft ?? prev?.ttft ?? 0,
+        tokensPerSec: elapsed > 0 ? tokens / elapsed : 0,
+        elapsed: (now - streamStartRef.current) / 1000,
+      }));
+    };
 
     const scheduleFlush = () => {
       if (rafPending || signal?.aborted) return;
@@ -281,6 +311,7 @@ export default function ChatInterface() {
         if (accumulated !== partialContentRef.current) {
           partialContentRef.current = accumulated;
           setStreamingContent(accumulated);
+          updateStats();
         }
       });
     };
@@ -315,14 +346,22 @@ export default function ChatInterface() {
                 const parsed = JSON.parse(t.slice(6));
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
-                if (delta?.content) { accumulated += delta.content; scheduleFlush(); }
+                if (delta?.content) {
+                  if (firstTokenAtRef.current === null) firstTokenAtRef.current = performance.now();
+                  streamCharsRef.current += delta.content.length;
+                  accumulated += delta.content; scheduleFlush();
+                }
               } catch {}
             } else if (t.startsWith('{')) {
               try {
                 const parsed = JSON.parse(t);
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
-                if (delta?.content) { accumulated += delta.content; scheduleFlush(); }
+                if (delta?.content) {
+                  if (firstTokenAtRef.current === null) firstTokenAtRef.current = performance.now();
+                  streamCharsRef.current += delta.content.length;
+                  accumulated += delta.content; scheduleFlush();
+                }
               } catch {}
             }
           }
@@ -333,6 +372,7 @@ export default function ChatInterface() {
     thinkingContentRef.current = accumulatedThinking;
     setStreamingContent(accumulated);
     setThinkingContent(accumulatedThinking);
+    updateStats();
     return accumulated;
   }, []);
 
@@ -342,13 +382,14 @@ export default function ChatInterface() {
       abortRef.current = null;
     }
     setStreamingContent(''); setThinkingContent('');
+    setStreamStats(null);
     setIsLoading(false);
     setRegeneratingId(null);
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, imageUrls?: string[] | null) => {
     if (!user) { setIsAuthModalOpen(true); return; }
-    setStreamingContent(''); setThinkingContent('');
+    setStreamingContent(''); setThinkingContent(''); setStreamStats(null);
     if (abortRef.current) abortRef.current.abort();
     const abort = new AbortController();
     abortRef.current = abort;
@@ -852,6 +893,8 @@ export default function ChatInterface() {
             streamingContent={streamingContent}
             thinkingContent={thinkingContent}
             isThinking={thinking}
+            devMode={devMode}
+            streamStats={streamStats}
             onRegenerate={handleRegenerate} onBranch={handleBranch}
             onEdit={handleEditMessage} onDelete={handleDeleteMessage}
             modelLabel={modelLabel} regeneratingId={regeneratingId}
@@ -902,6 +945,30 @@ export default function ChatInterface() {
                 </button>
               );
             })}
+            {devMode && (
+              <>
+                <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
+                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Dev</div>
+                {DEV_MODEL_OPTIONS.map(opt => {
+                  const selected = opt.id === selectedModelId;
+                  return (
+                    <button key={opt.id} onClick={() => handleModelChange(opt.id)}
+                      className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+                      style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span>{opt.label}</span>
+                      {selected && (
+                        <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            )}
             <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
             <button
               onClick={handleThinkingToggle}

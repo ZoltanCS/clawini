@@ -12,6 +12,8 @@ interface MessageListProps {
   streamingContent?: string;
   thinkingContent?: string;
   isThinking?: boolean;
+  devMode?: boolean;
+  streamStats?: { ttft: number; tokensPerSec: number; elapsed: number } | null;
   onRegenerate?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
   onEdit?: (messageId: string) => void;
@@ -42,7 +44,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, thinkingContent, isThinking, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, thinkingContent, isThinking, devMode, streamStats, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -171,6 +173,9 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
                     <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
                   </span>
                 )}
+                {devMode && streamStats && (
+                  <span className="text-[11px] font-mono ml-1" style={{ color: 'var(--fg-muted)' }}>{streamStats.elapsed.toFixed(1)}s</span>
+                )}
               </div>
               {thinkingContent && (
                 <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)' }}>{thinkingContent}</div>
@@ -190,6 +195,12 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
           <span className="text-sm font-medium" style={{ color: 'var(--fg-secondary)' }}>{modelLabel}</span>
               </div>
               <div className="text-[15px] leading-relaxed whitespace-pre-wrap streaming-cursor" style={{ color: 'var(--fg)' }}>{streamingContent}</div>
+              {devMode && streamStats && (
+                <div className="flex items-center gap-3 mt-2 text-[11px] font-mono" style={{ color: 'var(--fg-muted)' }}>
+                  <span>TTFT: {(streamStats.ttft / 1000).toFixed(2)}s</span>
+                  <span>{streamStats.tokensPerSec.toFixed(0)} tok/s</span>
+                </div>
+              )}
             </div>
           </div>
         )}
