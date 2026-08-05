@@ -11,9 +11,9 @@ export interface NimModel {
 
 const NIM_CATALOG: NimModel[] = [
   { id: 'minimaxai/minimax-m3',            label: 'MiniMax M3',      publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, multimodális' },
-  { id: 'zai.glm-5',                       label: 'GLM-5',           publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
+  { id: 'z-ai/glm5',                       label: 'GLM-5',           publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
   { id: 'deepseek-ai/deepseek-v4-pro',     label: 'DeepSeek V4 Pro', publisher: 'DeepSeek',    contextWindow: 131072,  supportsVision: false, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens DeepSeek' },
-  { id: 'moonshotai.kimi-k2.5',            label: 'Kimi K2.5',       publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
+  { id: 'moonshotai/kimi-k2.6',            label: 'Kimi K2.6',       publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
 ];
 
 const DEV_CATALOG: NimModel[] = [
@@ -78,7 +78,7 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
 }
 
 export const DEFAULT_NIM_MODEL_ID = 'minimaxai/minimax-m3';
-export const DEFAULT_GC_MODEL_ID = 'zai.glm-5';
+export const DEFAULT_GC_MODEL_ID = 'z-ai/glm5';
 
 export function getModelById(models: NimModel[], id: string): NimModel | undefined {
   return models.find(m => m.id === id);

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
 const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
-const MEMORY_MODEL = 'moonshotai.kimi-k2.5';
+const MEMORY_MODEL = 'moonshotai/kimi-k2.6';
 
 const EXTRACT_PROMPT = `A felhasználó és AI közötti beszélgetésből azonosítsd a fontos tényeket, preferenciákat, érdeklődési köröket amiket érdemes megjegyezni a felhasználóról.
 

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
 const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
-const SUGGESTION_MODEL = 'moonshotai.kimi-k2.5';
+const SUGGESTION_MODEL = 'moonshotai/kimi-k2.6';
 
 const SUGGEST_PROMPT = `A felhasználó memóriái és érdeklődési körei alapján generálj 6 rövid, egyedi "quick kártya" javaslatot amit megkérdezhetne egy AI-tól.
 

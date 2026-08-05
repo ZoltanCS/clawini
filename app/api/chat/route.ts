@@ -22,13 +22,13 @@ const GEMINI_MODELS = new Set([
 ]);
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'minimaxai/minimax-m3':          ['moonshotai.kimi-k2.5'],
-  'zai.glm-5':                     ['zai.glm-5'],
-  'deepseek-ai/deepseek-v4-pro':   ['zai.glm-5'],
-  'mistralai/mistral-medium-3.5-128b': ['moonshotai.kimi-k2.5'],
-  'thinkingmachines/inkling':          ['zai.glm-5'],
-  'deepseek-ai/deepseek-v4-flash':     ['moonshotai.kimi-k2.5'],
-  'nvidia/nemotron-3-ultra-550b-a55b': ['zai.glm-5'],
+  'minimaxai/minimax-m3':          ['moonshotai/kimi-k2.6'],
+  'z-ai/glm5':                     ['z-ai/glm5'],
+  'deepseek-ai/deepseek-v4-pro':   ['z-ai/glm5'],
+  'mistralai/mistral-medium-3.5-128b': ['moonshotai/kimi-k2.6'],
+  'thinkingmachines/inkling':          ['z-ai/glm5'],
+  'deepseek-ai/deepseek-v4-flash':     ['moonshotai/kimi-k2.6'],
+  'nvidia/nemotron-3-ultra-550b-a55b': ['z-ai/glm5'],
 };
 
 function isClaudeModel(id: string): boolean {
@@ -43,7 +43,7 @@ function useBedrockRuntime(id: string): boolean {
   return isClaudeModel(id) || isNovaModel(id);
 }
 
-const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai.kimi-k2.5']);
+const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
 const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
 
 function isGeminiModel(id: string): boolean {
@@ -71,7 +71,7 @@ function getFallbackModels(modelId: string): string[] {
 }
 
 // Compact summary: one cheap NIM model (Kimi) condenses older messages.
-const COMPACT_MODEL = 'moonshotai/kimi-k2.5';
+const COMPACT_MODEL = 'moonshotai/kimi-k2.6';
 const COMPACT_MAX_CHARS = 200000;
 const COMPACT_MAX_MESSAGES = 100;
 const COMPACT_KEEP_RECENT = 20;
@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
-    const modelId = model || 'moonshotai.kimi-k2.5';
+    const modelId = model || 'moonshotai/kimi-k2.6';
 
     // Tavily web search
     let webContext = '';
