@@ -224,7 +224,9 @@ function MessageBubbleInner({ message, onRegenerate, onBranch, onEdit, onDelete,
   const [fullHtmlPreview, setFullHtmlPreview] = useState<string | null>(null);
   const [thinkingOpen, setThinkingOpen] = useState(false);
 
-  const thinkingMatch = !isUser ? message.content?.match(/^「thinking」\n([\s\S]*?)\n「\/thinking」\n\n([\s\S]*)$/) : null;
+  // Matches the saved thinking block prefix; built via RegExp because the pattern contains newline escapes
+  const THINKING_PATTERN = new RegExp('^「thinking」' + '\n' + '([\\s\\S]*?)' + '\n' + '「\\/thinking」' + '\n\n' + '([\\s\\S]*)$');
+  const thinkingMatch = !isUser ? message.content?.match(THINKING_PATTERN) : null;
   const thinkingText = thinkingMatch?.[1]?.trim() || '';
   const cleanContent = thinkingMatch?.[2] ?? message.content;
 
@@ -424,6 +426,7 @@ const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
   return (
     prev.message.id === next.message.id &&
     prev.message.content === next.message.content &&
+    prev.message.image_url === next.message.image_url &&
     prev.highlighted === next.highlighted
   );
 });

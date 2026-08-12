@@ -96,7 +96,8 @@ export function useSupabaseChat(user: User | null) {
 
     const { error } = await supabase
       .from('chats')
-      .update({ title, updated_at: new Date().toISOString() })
+      // Don't touch updated_at: renaming a chat must not re-sort the chat list
+      .update({ title })
       .eq('id', chatId)
       .eq('user_id', user.id);
 

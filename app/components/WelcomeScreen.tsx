@@ -44,10 +44,10 @@ export default function WelcomeScreen({ onSuggestionClick, currentChat, userId }
             onClick={() => onSuggestionClick(suggestion)}
             className="flex-shrink-0 snap-start w-[160px] p-3.5 rounded-2xl text-left transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--input-bg)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--border-subtle)',
             }}
           >
             <div className="text-[12px] font-medium leading-snug" style={{ color: 'var(--fg)' }}>{suggestion}</div>

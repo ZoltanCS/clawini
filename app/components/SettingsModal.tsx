@@ -14,7 +14,7 @@ const EXPORT_FORMAT_KEY = 'exportFormat';
 const DEV_MODE_KEY = 'devMode';
 const MODELS_CACHE_KEY = 'nimModelsCache';
 
-const DEFAULT_MODEL_ID = 'minimax/minimax-m1-80k';
+const DEFAULT_MODEL_ID = 'minimaxai/minimax-m3';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -170,7 +170,11 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
 
   const handleAddTopic = async () => {
     if (!newTopic.trim() || !user) return;
-    const { data } = await supabase.from('quick_topics').insert({ user_id: user.id, topic: newTopic.trim() }).select().single();
+    const { data, error } = await supabase.from('quick_topics').insert({ user_id: user.id, topic: newTopic.trim() }).select().single();
+    if (error) {
+      alert(`Nem sikerült hozzáadni a témát: ${error.message}`);
+      return;
+    }
     if (data) setQuickTopics(prev => [data, ...prev]);
     setNewTopic('');
   };
@@ -230,9 +234,32 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
   };
 
   const handleDeleteAccount = async () => {
+    if (!user) return;
     if (!confirm('Biztosan törölni szeretnéd a fiókodat? Ez nem visszavonható!')) return;
-    await supabase.from('chats').delete().eq('user_id', user?.id);
-    await supabase.auth.admin.deleteUser(user?.id || '');
+    setIsLoading(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && data.error) alert(`Fiók törlése részben sikerült: ${data.error}`);
+    } catch {
+      alert('Hiba történt a fiók törlése közben');
+    }
+    setIsLoading(false);
+    await supabase.auth.signOut();
+    onClose();
+    window.location.reload();
+  };
+
+  const handleThemeSelect = (theme: 'light' | 'dark' | 'system') => {
+    setSettings({ ...settings, theme });
+    // Apply immediately: ChatInterface listens for this event and reads localStorage
+    localStorage.setItem('theme', theme);
+    window.dispatchEvent(new CustomEvent('theme-change', { detail: theme }));
   };
 
   if (!isOpen) return null;
@@ -429,7 +456,7 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
                     {(['light', 'dark', 'system'] as const).map((theme) => (
                       <button
                         key={theme}
-                        onClick={() => setSettings({ ...settings, theme })}
+                        onClick={() => handleThemeSelect(theme)}
                         className="p-4 rounded-3xl text-center transition-all duration-200 glass-border-gradient"
                         style={{
                           background: settings.theme === theme ? 'var(--accent-glass)' : 'var(--input-bg)',

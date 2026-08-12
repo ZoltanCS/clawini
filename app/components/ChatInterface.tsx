@@ -8,10 +8,10 @@ import { supabase } from '@/app/lib/supabase';
 import {
   countMessageTokensHeuristic,
   formatTokenCount,
-  getModelContextWindow,
   getTokenUsagePercent,
   getTokenUsageColor,
   isOverGCThreshold,
+  isOverCompactThreshold,
 } from '@/app/lib/tokens';
 import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
@@ -27,6 +27,8 @@ const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 const DEV_MODE_KEY = 'devMode';
 const CHAT_PARAMS_KEY = 'chatParams';
+// Keep in sync with COMPACT_KEEP_RECENT in app/api/chat/route.ts
+const COMPACT_KEEP_RECENT = 15;
 
 export interface ResponseStat {
   id: string;
@@ -76,7 +78,7 @@ export function exportChatAsMarkdown(messages: Message[], title: string): string
   let md = `# ${title}\n\n`;
   for (const msg of messages) {
     md += `### ${msg.role === 'user' ? 'Te' : 'AI'}\n${msg.content}\n\n`;
-    if (msg.image_url) md += `_[kép]_\n\n`;
+    if (msg.image_url) md += `![kép](${msg.image_url})\n\n`;
   }
   return md;
 }
@@ -119,6 +121,7 @@ export default function ChatInterface() {
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
   const thinkingContentRef = useRef<string>('');
+  const compactingRef = useRef(false);
   const pendingChatIdRef = useRef<string | null>(null);
   const streamStartRef = useRef(0);
   const firstTokenAtRef = useRef<number | null>(null);
@@ -127,6 +130,13 @@ export default function ChatInterface() {
   const fallbackModelRef = useRef<string | undefined>(undefined);
   const compactInfoRef = useRef<{ messages: number; tokens: number } | undefined>(undefined);
   const sendModelRef = useRef<string>('');
+  const [compactSummary, setCompactSummary] = useState<string | null>(null);
+  const [compactedCount, setCompactedCount] = useState(0);
+  const [messagesRefreshKey, setMessagesRefreshKey] = useState(0);
+
+  // Bump to force MessageList to refetch from DB after local mutations,
+  // so the UI never depends solely on realtime events arriving.
+  const bumpMessages = useCallback(() => setMessagesRefreshKey(k => k + 1), []);
 
   const wrapWithThinking = (content: string, thinkingText: string) => {
     if (!thinkingText) return content;
@@ -176,6 +186,10 @@ export default function ChatInterface() {
     const onDevModeChange = (e: Event) => {
       setDevMode(Boolean((e as CustomEvent).detail));
     };
+    const onThemeChange = (e: Event) => {
+      const t = (e as CustomEvent).detail;
+      if (t === 'light' || t === 'dark' || t === 'system') setTheme(t);
+    };
     const onModelsCacheUpdated = () => {
       try {
         const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
@@ -187,9 +201,11 @@ export default function ChatInterface() {
       } catch {}
     };
     window.addEventListener('dev-mode-change', onDevModeChange);
+    window.addEventListener('theme-change', onThemeChange);
     window.addEventListener('models-cache-updated', onModelsCacheUpdated);
     return () => {
       window.removeEventListener('dev-mode-change', onDevModeChange);
+      window.removeEventListener('theme-change', onThemeChange);
       window.removeEventListener('models-cache-updated', onModelsCacheUpdated);
     };
   }, []);
@@ -258,6 +274,12 @@ export default function ChatInterface() {
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const { chats, currentChat, currentChatId, setCurrentChatId, createNewChat, deleteChat, updateChatTitle, addMessage, uploadImage } = useSupabaseChat(user);
 
+  // Refs so stable callbacks can read the latest values without retriggering effects
+  const selectedModelIdRef = useRef(selectedModelId);
+  selectedModelIdRef.current = selectedModelId;
+  const currentChatIdRef = useRef(currentChatId);
+  currentChatIdRef.current = currentChatId;
+
   // Toggle tempera blob expansion when chat is active
   useEffect(() => {
     const root = document.documentElement;
@@ -283,11 +305,11 @@ export default function ChatInterface() {
       const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
       main.push(
         ...models
-          .filter((m: any) => m.tier)
+          .filter((m: any) => m.tier && !String(m.id).startsWith('gemini-')) // Gemini models live in the Google tab
           .sort((a: any, b: any) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9))
           .map((m: any) => ({ id: m.id, label: m.label || m.id, tier: m.tier as string })),
       );
-      if (devMode) dev.push(...models.filter((m: any) => !m.tier).map((m: any) => ({ id: m.id, label: m.label || m.id })));
+      if (devMode) dev.push(...models.filter((m: any) => !m.tier && !String(m.id).startsWith('gemini-')).map((m: any) => ({ id: m.id, label: m.label || m.id })));
       for (const opt of MODEL_SHEET_OPTIONS) if (!main.some(m => m.id === opt.id)) main.push(opt);
       if (devMode) for (const opt of DEV_MODEL_OPTIONS) if (!dev.some(m => m.id === opt.id)) dev.push(opt);
     }
@@ -382,6 +404,46 @@ export default function ChatInterface() {
   }, [updateChatTitle]);
 
   const getSystemPrompt = () => localStorage.getItem('systemPrompt') || '';
+
+  const loadChatCompactInfo = useCallback(async (chatId: string) => {
+    const { data } = await supabase
+      .from('chats')
+      .select('compact_summary, compacted_count')
+      .eq('id', chatId)
+      .single();
+    setCompactSummary((data?.compact_summary as string) || null);
+    setCompactedCount(data?.compacted_count || 0);
+  }, []);
+
+  const fireCompact = useCallback(async (chatId: string, messages: { role: string; content: string; image_url?: string | null }[]) => {
+    if (compactingRef.current || !chatId || messages.length === 0) return;
+    compactingRef.current = true;
+    try {
+      const toCompact = messages.slice(0, Math.max(0, messages.length - COMPACT_KEEP_RECENT));
+      if (toCompact.length === 0) return;
+
+      const res = await fetch('/api/chat/compact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: toCompact }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.summary) return;
+
+      await supabase.from('chats').update({
+        compact_summary: data.summary,
+        compacted_count: data.compactedCount || toCompact.length,
+      }).eq('id', chatId);
+
+      setCompactSummary(data.summary);
+      setCompactedCount(data.compactedCount || toCompact.length);
+    } catch {
+      // Compact hiba nem blokkolja a chatet
+    } finally {
+      compactingRef.current = false;
+    }
+  }, []);
 
   const streamResponse = useCallback(async (response: Response, signal?: AbortSignal) => {
     const reader = response.body?.getReader();
@@ -544,7 +606,6 @@ export default function ChatInterface() {
 
     setIsLoading(true);
     setError(null);
-    setShowTokenUsage(false);
     setRegeneratingId(null);
     sendModelRef.current = selectedModelId;
     streamStartRef.current = 0;
@@ -564,6 +625,7 @@ export default function ChatInterface() {
       allMessages = [...messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
       await addMessage(chatId, 'user', content, imageUrls);
       setEditingMessage(null);
+      bumpMessages();
     } else {
       const { data: freshMessages } = await supabase
         .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
@@ -576,16 +638,21 @@ export default function ChatInterface() {
       }
 
       await addMessage(chatId, 'user', content, imageUrls);
+      bumpMessages();
     }
 
     const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
       setTokenCount(heuristicTokens);
 
+    if (isOverCompactThreshold(allMessages.length, heuristicTokens, compactSummary !== null)) {
+      fireCompact(chatId, allMessages);
+    }
+
     try {
       if (abort.signal.aborted) { setStreamingContent(''); setThinkingContent(''); return; }
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, ...chatParams }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
         signal: abort.signal,
       });
 
@@ -604,8 +671,8 @@ export default function ChatInterface() {
         if (partial) {
           await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
+          bumpMessages();
         }
-        recordResponse(selectedModelId, { aborted: true });
         return;
       }
 
@@ -614,6 +681,7 @@ export default function ChatInterface() {
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
       await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
+      bumpMessages();
 
       // Background: extract memories
       if (user && accumulatedContent) {
@@ -630,13 +698,13 @@ export default function ChatInterface() {
         if (partial) {
           await addMessage(chatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
           setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: partial }], selectedModelId));
+          bumpMessages();
         }
-        recordResponse(selectedModelId, { aborted: true });
         return;
       }
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       recordResponse(selectedModelId, { error: msg });
-      await addMessage(chatId, 'assistant', `Hiba: ${msg}`);
+      // Error is shown via the banner only - never persisted as a chat message
       setError({ message: msg, timestamp: Date.now(), retryFn: () => { handleSendMessage(content, imageUrls); } });
     } finally {
       if (abortRef.current === abort) {
@@ -645,16 +713,14 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode, thinking, chatParams, recordResponse]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode, thinking, chatParams, recordResponse, compactSummary, fireCompact, bumpMessages]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
-    let chatId = currentChatId;
-    if (!chatId) {
-      chatId = await createNewChat();
-      if (!chatId) return null;
-    }
-    return await uploadImage(file, chatId);
-  }, [currentChatId, uploadImage, createNewChat]);
+    if (!user) return null;
+    // Don't create a chat just for an image pick - upload to a draft path
+    // (storage policy only checks the first folder = user id)
+    return await uploadImage(file, currentChatId || 'draft');
+  }, [user, currentChatId, uploadImage]);
 
   const handleNewChat = useCallback(() => {
     if (!user) { setIsAuthModalOpen(true); return; }
@@ -668,6 +734,8 @@ export default function ChatInterface() {
     setCurrentChatId(null);
     setIsSidebarOpen(false);
     gcTriggeredRef.current = false;
+    setCompactSummary(null);
+    setCompactedCount(0);
   }, [user, setCurrentChatId]);
 
   const handleSelectChat = useCallback((chatId: string) => {
@@ -683,12 +751,14 @@ export default function ChatInterface() {
     setEditingMessage(null);
     gcTriggeredRef.current = false;
     setRegeneratingId(null);
-  }, [setCurrentChatId]);
+    if (chatId) loadChatCompactInfo(chatId);
+  }, [setCurrentChatId, loadChatCompactInfo]);
 
   const handleMessagesLoaded = useCallback((messages: Message[]) => {
     setCurrentMessages(messages);
-    setTokenCount(countMessageTokensHeuristic(messages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), selectedModelId));
-  }, [selectedModelId]);
+    setTokenCount(countMessageTokensHeuristic(messages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), selectedModelIdRef.current));
+    if (currentChatIdRef.current) loadChatCompactInfo(currentChatIdRef.current);
+  }, [loadChatCompactInfo]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -715,22 +785,21 @@ export default function ChatInterface() {
     const msgIdx = messages.findIndex(m => m.id === messageId);
     if (msgIdx === -1 || messages[msgIdx].role !== 'assistant') return;
 
-    // Delete old message immediately so it disappears from the list
-    await supabase.from('messages').delete().eq('id', messageId).eq('chat_id', currentChatId);
-
     const abort = new AbortController();
     abortRef.current = abort;
     setIsLoading(true);
     setError(null);
+    // Hide the old message while regenerating; the DB row stays until the new
+    // answer arrives, so on error it simply reappears (nothing is ever lost).
+    setRegeneratingId(messageId);
 
-    const messagesBefore = messages.slice(0, msgIdx);
-    const allMessages = messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
+    const allMessages = messages.slice(0, msgIdx).map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
 
     try {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, ...chatParams }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -742,25 +811,37 @@ export default function ChatInterface() {
       const accumulatedContent = await streamResponse(response, abort.signal);
       setStreamingContent(''); setThinkingContent('');
 
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted) {
+        // Stopped: keep the partial answer if we got one, otherwise restore the old message
+        const partial = partialContentRef.current;
+        if (partial) {
+          await supabase.from('messages').delete().eq('id', messageId).eq('chat_id', currentChatId);
+          await addMessage(currentChatId, 'assistant', wrapWithThinking(partial, thinkingContentRef.current));
+          bumpMessages();
+        }
+        return;
+      }
 
       recordResponse(selectedModelId);
       setTokenCount(countMessageTokensHeuristic([...allMessages, { role: 'assistant', content: accumulatedContent || '' }], selectedModelId));
+      await supabase.from('messages').delete().eq('id', messageId).eq('chat_id', currentChatId);
       await addMessage(currentChatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
+      bumpMessages();
     } catch (error: any) {
       setStreamingContent(''); setThinkingContent('');
-      if (error?.name === 'AbortError') return;
+      if (error?.name === 'AbortError') return; // old message reappears via regeneratingId reset
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       recordResponse(selectedModelId, { error: msg });
+      // Old message still exists in DB, so retry works reliably
       setError({ message: msg, timestamp: Date.now(), retryFn: () => handleRegenerate(messageId) });
     } finally {
       if (abortRef.current === abort) {
         abortRef.current = null;
         setIsLoading(false);
-        setRegeneratingId(null);
       }
+      setRegeneratingId(null);
     }
-  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode, thinking, chatParams, recordResponse]);
+  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode, thinking, chatParams, recordResponse, compactSummary, bumpMessages]);
 
   const closeBranchToast = useCallback(() => setBranchToast(null), []);
 
@@ -810,17 +891,17 @@ export default function ChatInterface() {
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
+    if (!window.confirm('Törlöd ezt az üzenetet és az utána következőket?')) return;
     const { data: msgs } = await supabase
       .from('messages').select('id').eq('chat_id', currentChatId).order('created_at', { ascending: true });
     if (!msgs) return;
     const idx = msgs.findIndex(m => m.id === messageId);
     if (idx === -1) return;
     const toDelete = msgs.slice(idx).map(m => m.id);
-    // Delete with chat_id filter to satisfy RLS
-    for (const id of toDelete) {
-      await supabase.from('messages').delete().eq('id', id).eq('chat_id', currentChatId);
-    }
-  }, [currentChatId, user]);
+    // Delete with chat_id filter to satisfy RLS, in a single request
+    await supabase.from('messages').delete().in('id', toDelete).eq('chat_id', currentChatId);
+    bumpMessages();
+  }, [currentChatId, user, bumpMessages]);
 
   const handleGarbageCollect = useCallback(async () => {
     if (!currentChatId || !user || gcTriggeredRef.current) return;
@@ -1039,6 +1120,7 @@ export default function ChatInterface() {
           <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} userId={user?.id} />
           <MessageList
             chatId={currentChatId} isLoading={isLoading}
+            refreshKey={messagesRefreshKey}
             onMessagesLoaded={handleMessagesLoaded}
             streamingContent={streamingContent}
             thinkingContent={thinkingContent}
@@ -1051,7 +1133,7 @@ export default function ChatInterface() {
           />
         </div>
 
-        {devMode && (isLoading ? streamStats : lastResponse) && (
+        {devMode && ((isLoading ? streamStats : lastResponse) || (compactSummary && compactedCount > 0)) && (
           <div className="px-3 pb-1.5 flex justify-center">
             <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-[11px] font-mono animate-fadeIn" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-muted)' }}>
               {isLoading && streamStats ? (
@@ -1072,6 +1154,9 @@ export default function ChatInterface() {
                   {lastResponse.compacted && <span style={{ color: 'var(--accent)' }}>compact: {lastResponse.compacted.messages} üzenet / {lastResponse.compacted.tokens} tok</span>}
                 </>
               ) : null}
+              {compactSummary && compactedCount > 0 && (
+                <span style={{ color: 'var(--accent)' }}>compact: {compactedCount} üzenet összefoglalva</span>
+              )}
             </div>
           </div>
         )}

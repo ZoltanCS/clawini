@@ -7,8 +7,14 @@ CREATE TABLE IF NOT EXISTS public.chats (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL DEFAULT 'Új beszélgetés',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    compact_summary TEXT,
+    compacted_count INTEGER DEFAULT 0
 );
+
+-- Add compact columns to existing chats tables (idempotent)
+ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS compact_summary TEXT;
+ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS compacted_count INTEGER DEFAULT 0;
 
 -- Create messages table
 CREATE TABLE IF NOT EXISTS public.messages (
@@ -31,6 +37,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     auto_save BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create memories table (auto-extracted facts about the user)
+CREATE TABLE IF NOT EXISTS public.memories (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'auto',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create quick_topics table (user-defined quick card topics)
+CREATE TABLE IF NOT EXISTS public.quick_topics (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    topic TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Create storage bucket for images
@@ -91,6 +114,36 @@ CREATE POLICY "Users can delete messages from their chats"
             AND chats.user_id = auth.uid()
         )
     );
+
+-- Memories policies
+ALTER TABLE public.memories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can see their own memories"
+    ON public.memories FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own memories"
+    ON public.memories FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own memories"
+    ON public.memories FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Quick topics policies
+ALTER TABLE public.quick_topics ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can see their own quick topics"
+    ON public.quick_topics FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own quick topics"
+    ON public.quick_topics FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own quick topics"
+    ON public.quick_topics FOR DELETE
+    USING (auth.uid() = user_id);
 
 -- Profiles policies
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

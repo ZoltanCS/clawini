@@ -89,7 +89,8 @@ export default function Sidebar({
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id); }}
-                      className="p-1.5 opacity-0 group-hover:opacity-100 rounded-xl transition-all hover-scale"
+                      className="p-1.5 opacity-60 group-hover:opacity-100 rounded-xl transition-all hover-scale"
+                      title="Törlés"
                       style={{ color: 'var(--danger)' }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

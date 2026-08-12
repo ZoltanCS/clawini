@@ -6,6 +6,9 @@ const GC_THRESHOLD = 800000;
 const CHARS_PER_TOKEN_DEFAULT = 3.8;
 const TOKENS_PER_IMAGE = 258;
 
+export const COMPACT_MAX_MESSAGES = 100;
+export const COMPACT_MAX_TOKENS = 50000;
+
 export function getModelContextWindow(modelId: string): number {
   const model = NIM_FALLBACK.find(m => m.id === modelId);
   return model?.contextWindow || DEFAULT_CONTEXT_WINDOW;
@@ -85,6 +88,15 @@ export function getTokenUsageColor(percent: number): string {
 
 export function isOverGCThreshold(tokenCount: number): boolean {
   return tokenCount > GC_THRESHOLD;
+}
+
+export function isOverCompactThreshold(
+  messageCount: number,
+  tokenCount: number,
+  alreadyCompacted: boolean
+): boolean {
+  if (alreadyCompacted) return false;
+  return messageCount > COMPACT_MAX_MESSAGES || tokenCount > COMPACT_MAX_TOKENS;
 }
 
 export function getAvailableModels(): NimModel[] {

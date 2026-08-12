@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const BEDROCK_REGION = process.env.AWS_BEDROCK_REGION || 'us-east-1';
-const BEDROCK_BASE_URL = `https://bedrock-mantle.${BEDROCK_REGION}.api.aws/v1`;
+// Use the same NIM endpoint as chat so no extra API key is needed
+const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const SUGGESTION_MODEL = 'moonshotai/kimi-k2.6';
 
 const SUGGEST_PROMPT = `A felhasználó memóriái és érdeklődési körei alapján generálj 6 rövid, egyedi "quick kártya" javaslatot amit megkérdezhetne egy AI-tól.
@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
     if (!userId) return NextResponse.json({ suggestions: [] });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    // Service key required: reads happen server-side without a user session (RLS)
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
+    if (!supabaseUrl || !supabaseKey) return NextResponse.json({ suggestions: [] });
     const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
     // Get memories
@@ -54,14 +56,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ suggestions: [] });
     }
 
-    const apiKey = process.env.AWS_BEDROCK_API_KEY;
+    const apiKey = process.env.NVIDIA_NIM_API_KEY;
     if (!apiKey) return NextResponse.json({ suggestions: [] });
 
     let context = '';
     if (memoryText) context += `Memóriák:\n${memoryText}\n\n`;
     if (topicText) context += `Megadott témák:\n${topicText}`;
 
-    const res = await fetch(`${BEDROCK_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({

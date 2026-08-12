@@ -8,6 +8,7 @@ import { supabase } from '@/app/lib/supabase';
 interface MessageListProps {
   chatId: string | null;
   isLoading: boolean;
+  refreshKey?: number;
   onMessagesLoaded?: (messages: Message[]) => void;
   streamingContent?: string;
   thinkingContent?: string;
@@ -44,7 +45,7 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
-export default function MessageList({ chatId, isLoading, onMessagesLoaded, streamingContent, thinkingContent, isThinking, devMode, streamStats, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
+export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessagesLoaded, streamingContent, thinkingContent, isThinking, devMode, streamStats, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -97,7 +98,10 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
         { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setMessages((prev) => [...prev, payload.new as Message]);
+            // Dedupe: the same insert can arrive via realtime while a refresh fetch also includes it
+            setMessages((prev) => prev.some(m => m.id === (payload.new as Message).id)
+              ? prev.map(m => m.id === (payload.new as Message).id ? payload.new as Message : m)
+              : [...prev, payload.new as Message]);
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) => prev.filter(m => m.id !== payload.old.id));
           } else if (payload.eventType === 'UPDATE') {
@@ -110,7 +114,8 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
     return () => {
       subscription.unsubscribe();
     };
-  }, [chatId, onMessagesLoaded]);
+    // onMessagesLoaded intentionally not in deps: it should not trigger refetches
+  }, [chatId, refreshKey]);
 
   useEffect(() => {
     prevMessageCount.current = messages.length;
@@ -146,11 +151,14 @@ export default function MessageList({ chatId, isLoading, onMessagesLoaded, strea
 
   if (messages.length === 0) return null;
 
+  // Hide the message currently being regenerated (it gets replaced once streaming finishes)
+  const visibleMessages = regeneratingId ? messages.filter(m => m.id !== regeneratingId) : messages;
+
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       <div className="w-full max-w-3xl mx-auto">
-        {messages.map((message, index) => (
-          <div key={message.id} className="message-item animate-messageSlideIn" style={{ animationDelay: index === messages.length - 1 ? '0s' : '0s' }}>
+        {visibleMessages.map((message) => (
+          <div key={message.id} className="message-item animate-messageSlideIn">
             <MessageBubble 
               message={message}
               onRegenerate={() => handleRegenerate(message.id)}

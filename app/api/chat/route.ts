@@ -23,8 +23,9 @@ const GEMINI_MODELS = new Set([
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
   'minimaxai/minimax-m3':          ['moonshotai/kimi-k2.6'],
-  'z-ai/glm5':                     ['z-ai/glm5'],
+  'z-ai/glm5':                     ['moonshotai/kimi-k2.6'],
   'deepseek-ai/deepseek-v4-pro':   ['z-ai/glm5'],
+  'moonshotai/kimi-k2.6':          ['minimaxai/minimax-m3'],
   'mistralai/mistral-medium-3.5-128b': ['moonshotai/kimi-k2.6'],
   'thinkingmachines/inkling':          ['z-ai/glm5'],
   'deepseek-ai/deepseek-v4-flash':     ['moonshotai/kimi-k2.6'],
@@ -74,7 +75,8 @@ function getFallbackModels(modelId: string): string[] {
 const COMPACT_MODEL = 'moonshotai/kimi-k2.6';
 const COMPACT_MAX_CHARS = 200000;
 const COMPACT_MAX_MESSAGES = 100;
-const COMPACT_KEEP_RECENT = 20;
+// Keep in sync with COMPACT_KEEP_RECENT in ChatInterface.tsx
+const COMPACT_KEEP_RECENT = 15;
 
 function msgText(m: any): string {
   if (typeof m.content === 'string') return m.content;
@@ -289,7 +291,7 @@ function shouldAutoSearch(query: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort } = await req.json();
+    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort, compactSummary } = await req.json();
     const systemContent = buildRichSystemPrompt(systemPrompt || SYSTEM_PROMPT_DEFAULT);
     const modelId = model || 'moonshotai/kimi-k2.6';
 
@@ -330,6 +332,40 @@ export async function POST(req: NextRequest) {
       return { role: msg.role, content: msg.content };
     });
     formattedMessages.unshift({ role: 'system', content: systemContent + webContext });
+
+    // Compact summary injection: az AI számára a régi üzeneteket kiváltjuk a compact összefoglalóval
+    let wasCompacted = false;
+    let compactedMessageCount = 0;
+    if (compactSummary && typeof compactSummary === 'string' && compactSummary.trim().length > 0) {
+      // Kihagyjuk az utolsó 15 nem-system üzenetet, a korábbiakat összefoglalóval helyettesítjük
+      const nonSystem = formattedMessages.filter((m: any) => m.role !== 'system');
+      const KEEP_RECENT = 15;
+      if (nonSystem.length > KEEP_RECENT) {
+        const toRemove = nonSystem.slice(0, nonSystem.length - KEEP_RECENT);
+        compactedMessageCount = toRemove.length;
+
+        const compactSystemMsg = { role: 'system' as const, content: `[Korábbi beszélgetés összefoglalója]\n\n${compactSummary}\n\n---\nA fenti a korábbi beszélgetés összefoglalója. Az alábbiak a legutóbbi üzenetek. A felhasználó továbbra is látja az összes üzenetet, de te csak az összefoglalból és az új üzenetekből dolgozz.` };
+
+        const result: any[] = [];
+        let systemInserted = false;
+        for (const msg of formattedMessages) {
+          if (msg.role === 'system') {
+            result.push(msg);
+            if (!systemInserted) {
+              result.push(compactSystemMsg);
+              systemInserted = true;
+            }
+          } else if (toRemove.includes(msg)) {
+            continue;
+          } else {
+            result.push(msg);
+          }
+        }
+        formattedMessages.length = 0;
+        formattedMessages.push(...result);
+        wasCompacted = true;
+      }
+    }
 
     if (!NIM_API_KEY) {
       return NextResponse.json({ error: 'API key not configured (set NVIDIA_NIM_API_KEY)' }, { status: 500 });
@@ -397,9 +433,11 @@ export async function POST(req: NextRequest) {
     // Compact: régi üzenetek összefoglalása egy olcsó NIM modellel (TTFT csökkentés)
     const compacted = await summarizeCompact(formattedMessages, NIM_API_KEY);
     const chatMessages = compacted.messages;
-    const compactInfo = compacted.compactedMessages > 0
-      ? { messages: compacted.compactedMessages, tokens: compacted.compactedTokens }
-      : null;
+    const compactInfo = wasCompacted
+      ? { messages: compactedMessageCount, tokens: 0 }
+      : compacted.compactedMessages > 0
+        ? { messages: compacted.compactedMessages, tokens: compacted.compactedTokens }
+        : null;
 
     // --- BEDROCK-RUNTIME PATH: Claude + Nova models use Converse Stream API ---
     if (useBedrockRuntime(modelId)) {
@@ -409,10 +447,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'AWS IAM credentials not configured for Claude' }, { status: 500 });
       }
 
-      // Convert messages to Converse format
+      // Convert messages to Converse format (use the compacted message list, like the other paths)
       const systemBlocks: { text: string }[] = [];
       const converseMessages: any[] = [];
-      for (const msg of formattedMessages) {
+      for (const msg of chatMessages) {
         if (msg.role === 'system') {
           systemBlocks.push({ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) });
           continue;
@@ -498,29 +536,20 @@ export async function POST(req: NextRequest) {
       const stream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
-          let textChunks = 0;
-          let allEvents: string[] = [];
-          let rawBytesHex: string[] = [];
+          let sentDone = false;
+          const sendDone = () => {
+            if (!sentDone) {
+              sentDone = true;
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            }
+          };
           try {
             const reader = converseRes.body!.getReader();
             let buffer = Buffer.alloc(0);
 
             while (true) {
               const { done, value } = await reader.read();
-              if (done) {
-                // Debug: if no text chunks, send debug info to client
-                if (textChunks === 0) {
-                  const debugMsg = `[DEBUG Nova]\nRaw bytes (first 500): ${rawBytesHex.join('')}\n\nEvents parsed: ${allEvents.length}\n${allEvents.join('\n')}`;
-                  const debugChunk = JSON.stringify({ choices: [{ delta: { content: debugMsg } }] });
-                  controller.enqueue(encoder.encode(`data: ${debugChunk}\n\n`));
-                }
-                break;
-              }
-
-              // Collect raw bytes for debug
-              if (rawBytesHex.length < 500) {
-                rawBytesHex.push(...Array.from(value).slice(0, 500 - rawBytesHex.length).map(b => b.toString(16).padStart(2, '0') + ' '));
-              }
+              if (done) break;
 
               buffer = Buffer.concat([buffer, Buffer.from(value)]);
 
@@ -539,10 +568,8 @@ export async function POST(req: NextRequest) {
                 try {
                   const text = payload.toString('utf8');
                   const event = JSON.parse(text);
-                  allEvents.push(JSON.stringify(event).slice(0, 500));
 
                   if (event.delta?.text) {
-                    textChunks++;
                     const chunk = JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.delta?.reasoningContent?.text) {
@@ -550,7 +577,6 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.contentBlockDelta?.delta?.text) {
                     // Nova format
-                    textChunks++;
                     const chunk = JSON.stringify({ choices: [{ delta: { content: event.contentBlockDelta.delta.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.contentBlockDelta?.delta?.reasoningContent?.text) {
@@ -558,7 +584,7 @@ export async function POST(req: NextRequest) {
                     const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: event.contentBlockDelta.delta.reasoningContent.text } }] });
                     controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
                   } else if (event.stopReason || event.messageStop) {
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    sendDone();
                   } else if (event.internalServerException || event.modelStreamErrorException || event.validationException) {
                     const errMsg = event.internalServerException?.message || event.modelStreamErrorException?.message || event.validationException?.message || 'Unknown stream error';
                     const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Hiba: ${errMsg}]` } }] });
@@ -570,11 +596,11 @@ export async function POST(req: NextRequest) {
               }
             }
 
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            sendDone();
           } catch (e: any) {
             const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] });
             controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            sendDone();
           }
           controller.close();
         },

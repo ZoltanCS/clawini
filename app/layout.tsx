@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="hu" className="overscroll-none">
       <head>
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="antialiased overscroll-none touch-manipulation">
         {children}

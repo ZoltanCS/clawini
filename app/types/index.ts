@@ -14,6 +14,8 @@ export interface Chat {
   created_at: string;
   updated_at: string;
   parent_chat_id?: string | null;
+  compact_summary?: string | null;
+  compacted_count?: number | null;
 }
 
 export interface UserProfile {
