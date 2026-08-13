@@ -42,7 +42,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-      <div className="rounded-3xl shadow-xl w-full max-w-md p-6 glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+      <div className="rounded-3xl shadow-xl w-full max-w-md p-6 glass-elevated glass-border-gradient max-h-[90dvh] overflow-y-auto" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold" style={{ color: 'var(--fg)' }}>
             {isSignUp ? 'Regisztráció' : 'Bejelentkezés'}
