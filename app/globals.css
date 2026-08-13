@@ -391,3 +391,8 @@ main.flex-1, main > .flex-1 { min-width: 0; }
 .hover-scale:active {
   transform: scale(0.95);
 }
+
+/* Message action buttons: hidden until hover on desktop, always visible on touch devices */
+.message-actions { opacity: 0; transition: opacity 0.2s ease; }
+.group:hover .message-actions, .message-actions:focus-within { opacity: 0.7; }
+@media (hover: none) { .message-actions { opacity: 0.7; } }

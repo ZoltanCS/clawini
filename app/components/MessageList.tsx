@@ -50,9 +50,11 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
   const containerRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [showJumpBtn, setShowJumpBtn] = useState(false);
   const prevChatId = useRef<string | null>(null);
   const prevMessageCount = useRef(0);
   const isNearBottom = useRef(true);
+  const openedChatScrolledRef = useRef<string | null>(null);
 
   const handleRegenerate = useCallback((id: string) => onRegenerate?.(id), [onRegenerate]);
   const handleBranch = useCallback((id: string) => onBranch?.(id), [onBranch]);
@@ -63,8 +65,19 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
     const el = containerRef.current;
     if (!el) return;
     const threshold = 150;
-    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    isNearBottom.current = near;
+    setShowJumpBtn(!near);
   }, []);
+
+  // When a chat is opened, jump straight to the latest messages
+  useEffect(() => {
+    if (!chatId || messages.length === 0) return;
+    if (messages[0].chat_id !== chatId) return; // stale data from the previous chat
+    if (openedChatScrolledRef.current === chatId) return;
+    openedChatScrolledRef.current = chatId;
+    bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+  }, [chatId, messages]);
 
   useEffect(() => {
     if (!chatId) {
@@ -155,7 +168,8 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
   const visibleMessages = regeneratingId ? messages.filter(m => m.id !== regeneratingId) : messages;
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+    <div className="relative flex-1 min-h-0">
+      <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto px-3 py-3 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       <div className="w-full max-w-3xl mx-auto">
         {visibleMessages.map((message) => (
           <div key={message.id} className="message-item animate-messageSlideIn">
@@ -214,6 +228,19 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
         )}
         {isLoading && !streamingContent && !(isThinking && isLoading) && <TypingIndicator modelLabel={modelLabel} />}
         <div ref={bottomRef} className="h-2" />
+      </div>
+      {showJumpBtn && (
+        <button
+          onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center shadow-lg animate-fadeIn"
+          style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)', color: 'var(--fg-secondary)' }}
+          title="Ugrás a legújabb üzenethez"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      )}
       </div>
     </div>
   );

@@ -103,7 +103,11 @@ export function useSupabaseChat(user: User | null) {
 
     if (error) {
       console.error('Error updating chat:', error);
+      return;
     }
+
+    // Optimistic update so the new title shows even if realtime is slow
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
   };
 
   const addMessage = async (chatId: string, role: 'user' | 'assistant', content: string, imageUrls?: string[] | string | null) => {

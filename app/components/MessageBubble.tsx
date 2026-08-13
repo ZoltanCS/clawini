@@ -220,7 +220,6 @@ function formatInlineMarkdown(text: string): string {
 function MessageBubbleInner({ message, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', highlighted }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
-  const [showActions, setShowActions] = useState(false);
   const [fullHtmlPreview, setFullHtmlPreview] = useState<string | null>(null);
   const [thinkingOpen, setThinkingOpen] = useState(false);
 
@@ -262,8 +261,6 @@ function MessageBubbleInner({ message, onRegenerate, onBranch, onEdit, onDelete,
     <>
       <div
         className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 group ${highlighted ? 'animate-highlight-branch rounded-2xl' : ''}`}
-        onMouseEnter={() => setShowActions(true)}
-        onMouseLeave={() => setShowActions(false)}
       >
         <div
           className={`max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-3xl break-words overflow-hidden min-w-0 transition-all duration-200`}
@@ -328,7 +325,7 @@ function MessageBubbleInner({ message, onRegenerate, onBranch, onEdit, onDelete,
             </div>
           )}
 
-          <div className="flex items-center gap-0.5 mt-2 transition-all duration-200" style={{ opacity: showActions ? 0.7 : 0 }}>
+          <div className="message-actions flex items-center gap-0.5 mt-2">
             {isUser ? (
               <>
                 <button

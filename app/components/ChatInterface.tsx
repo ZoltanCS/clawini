@@ -386,12 +386,16 @@ export default function ChatInterface() {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let title = '';
+      let buffer = '';
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = decoder.decode(value);
-          for (const line of text.split('\n')) {
+          // Buffer across chunks: SSE lines can be split between reads
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith('data: ') || t === 'data: [DONE]') continue;
             try { title += JSON.parse(t.slice(6)).choices?.[0]?.delta?.content || ''; } catch {}
