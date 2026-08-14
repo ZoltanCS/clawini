@@ -14,6 +14,17 @@ const NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// OpenCode Zen (OpenAI-compatible endpoint)
+const OPENCODE_BASE_URL = process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1';
+const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
+
+const OPENCODE_MODELS = new Set([
+  'gpt-5.6-luna',
+  'grok-4.5',
+  'qwen3.7-max',
+  'kimi-k2.6',
+]);
+
 const GEMINI_MODELS = new Set([
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
@@ -49,6 +60,10 @@ const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
 
 function isGeminiModel(id: string): boolean {
   return GEMINI_MODELS.has(id) || id.startsWith('gemini-');
+}
+
+function isOpenCodeModel(id: string): boolean {
+  return OPENCODE_MODELS.has(id);
 }
 
 const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
@@ -689,6 +704,69 @@ export async function POST(req: NextRequest) {
       }
 
       return new Response(geminiRes.body, { headers: geminiHeaders });
+    }
+
+    // --- OPENCODE ZEN: OpenAI-compatible chat/completions ---
+    if (isOpenCodeModel(modelId)) {
+      if (!OPENCODE_API_KEY) {
+        return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
+      }
+
+      const body: Record<string, any> = {
+        model: modelId,
+        messages: chatMessages,
+        stream: true,
+        stream_options: { include_usage: true },
+        max_tokens: Math.min(maxTokens || 4096, 8192),
+        temperature: temperature ?? 0.7,
+        top_p: topP ?? 0.9,
+        frequency_penalty: frequencyPenalty ?? 0.3,
+      };
+      if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+      const opencodeRes = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENCODE_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!opencodeRes.ok) {
+        let err = '';
+        try { err = await opencodeRes.text(); } catch {}
+
+        const message = opencodeRes.status === 401
+          ? 'API key rejected - check OPENCODE_API_KEY'
+          : opencodeRes.status === 404
+            ? `Model '${modelId}' not found`
+            : opencodeRes.status === 429
+              ? 'Rate limited - try again later'
+              : `API error ${opencodeRes.status}`;
+        return NextResponse.json({ error: message, details: err }, { status: opencodeRes.status });
+      }
+
+      if (!opencodeRes.body) {
+        return NextResponse.json({ error: 'Empty response body' }, { status: 502 });
+      }
+
+      const opencodeHeaders: Record<string, string> = {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      };
+      if (compactInfo) {
+        opencodeHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
+      }
+
+      return new Response(opencodeRes.body, { headers: opencodeHeaders });
     }
 
     // --- OPEN-WEIGHT MODELS: NVIDIA NIM chat/completions ---

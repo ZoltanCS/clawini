@@ -1,4 +1,4 @@
-import { NIM_FALLBACK, NimModel } from './nim-models';
+import { NIM_FALLBACK, OPENCODE_CATALOG, NimModel } from './nim-models';
 
 export const DEFAULT_CONTEXT_WINDOW = 131072;
 const GC_THRESHOLD = 800000;
@@ -6,16 +6,18 @@ const GC_THRESHOLD = 800000;
 const CHARS_PER_TOKEN_DEFAULT = 3.8;
 const TOKENS_PER_IMAGE = 258;
 
+const ALL_MODELS: NimModel[] = [...NIM_FALLBACK, ...OPENCODE_CATALOG];
+
 export const COMPACT_MAX_MESSAGES = 100;
 export const COMPACT_MAX_TOKENS = 50000;
 
 export function getModelContextWindow(modelId: string): number {
-  const model = NIM_FALLBACK.find(m => m.id === modelId);
+  const model = ALL_MODELS.find(m => m.id === modelId);
   return model?.contextWindow || DEFAULT_CONTEXT_WINDOW;
 }
 
 export function getModelTokensPerChar(modelId: string): number {
-  const model = NIM_FALLBACK.find(m => m.id === modelId);
+  const model = ALL_MODELS.find(m => m.id === modelId);
   return model?.contextWindow ? 3.8 : CHARS_PER_TOKEN_DEFAULT;
 }
 

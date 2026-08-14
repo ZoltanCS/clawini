@@ -13,7 +13,7 @@ import {
   isOverGCThreshold,
   isOverCompactThreshold,
 } from '@/app/lib/tokens';
-import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, getModelById } from '@/app/lib/nim-models';
+import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, OPENCODE_CATALOG, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -74,6 +74,8 @@ const DEV_MODEL_OPTIONS = [
   { label: 'Nemotron 3 Ultra',    id: 'nvidia/nemotron-3-ultra-550b-a55b' },
 ] as const;
 
+const OPENCODE_MODEL_IDS = new Set(OPENCODE_CATALOG.map(m => m.id));
+
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
   let md = `# ${title}\n\n`;
   for (const msg of messages) {
@@ -98,7 +100,7 @@ export default function ChatInterface() {
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_NIM_MODEL_ID);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
-  const [providerTab, setProviderTab] = useState<'nvidia' | 'google'>('nvidia');
+  const [providerTab, setProviderTab] = useState<'nvidia' | 'google' | 'opencode'>('nvidia');
   const [error, setError] = useState<ChatError | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [models, setModels] = useState<NimModel[]>([]);
@@ -298,6 +300,7 @@ export default function ChatInterface() {
     const main: { id: string; label: string; tier?: string }[] = [];
     const dev: { id: string; label: string }[] = [];
     const google: { id: string; label: string; tier?: string }[] = GEMINI_CATALOG.map(m => ({ id: m.id, label: m.label, tier: m.tier }));
+    const opencode: { id: string; label: string; tier?: string }[] = OPENCODE_CATALOG.map(m => ({ id: m.id, label: m.label, tier: m.tier }));
     if (models.length === 0) {
       main.push(...MODEL_SHEET_OPTIONS);
       if (devMode) dev.push(...DEV_MODEL_OPTIONS);
@@ -305,15 +308,15 @@ export default function ChatInterface() {
       const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
       main.push(
         ...models
-          .filter((m: any) => m.tier && !String(m.id).startsWith('gemini-')) // Gemini models live in the Google tab
+          .filter((m: any) => m.tier && !String(m.id).startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)) // Gemini + OpenCode models live in their own tabs
           .sort((a: any, b: any) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9))
           .map((m: any) => ({ id: m.id, label: m.label || m.id, tier: m.tier as string })),
       );
-      if (devMode) dev.push(...models.filter((m: any) => !m.tier && !String(m.id).startsWith('gemini-')).map((m: any) => ({ id: m.id, label: m.label || m.id })));
+      if (devMode) dev.push(...models.filter((m: any) => !m.tier && !String(m.id).startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)).map((m: any) => ({ id: m.id, label: m.label || m.id })));
       for (const opt of MODEL_SHEET_OPTIONS) if (!main.some(m => m.id === opt.id)) main.push(opt);
       if (devMode) for (const opt of DEV_MODEL_OPTIONS) if (!dev.some(m => m.id === opt.id)) dev.push(opt);
     }
-    return { main, dev, google };
+    return { main, dev, google, opencode };
   }, [models, devMode]);
 
   useEffect(() => {
@@ -321,6 +324,7 @@ export default function ChatInterface() {
       ...MODEL_SHEET_OPTIONS,
       ...DEV_MODEL_OPTIONS,
       ...GEMINI_CATALOG.map(g => g.id),
+      ...OPENCODE_CATALOG.map(o => o.id),
     ].map(o => typeof o === 'string' ? o : o.id));
     if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId) && !knownIds.has(selectedModelId)) {
       setSelectedModelId(DEFAULT_NIM_MODEL_ID);
@@ -1191,29 +1195,48 @@ export default function ChatInterface() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
           <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-            {devMode && (
-              <div className="px-3 pt-3 pb-1">
-                <div className="relative flex rounded-full p-1 mx-auto max-w-[220px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
-                  <div
-                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full transition-transform duration-200"
-                    style={{ background: 'var(--accent-glass)', left: providerTab === 'nvidia' ? '4px' : 'calc(50% + 0px)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
-                  />
-                  {(['nvidia', 'google'] as const).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setProviderTab(p)}
-                      className="relative flex-1 rounded-full py-1 text-[11px] font-semibold transition-colors"
-                      style={{ color: providerTab === p ? 'var(--accent)' : 'var(--fg-muted)' }}
-                    >
-                      {p === 'nvidia' ? 'NVIDIA' : 'Google'}
-                    </button>
-                  ))}
-                </div>
+            <div className="px-3 pt-3 pb-1">
+              <div className="relative flex rounded-full p-1 mx-auto max-w-[280px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                <div
+                  className="absolute top-1 bottom-1 w-[calc(33.333%-4px)] rounded-full transition-transform duration-200"
+                  style={{ background: 'var(--accent-glass)', left: providerTab === 'nvidia' ? '4px' : providerTab === 'google' ? 'calc(33.333% + 0px)' : 'calc(66.666% + 0px)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                />
+                {(['nvidia', 'google', 'opencode'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setProviderTab(p)}
+                    className="relative flex-1 rounded-full py-1 text-[11px] font-semibold transition-colors"
+                    style={{ color: providerTab === p ? 'var(--accent)' : 'var(--fg-muted)' }}
+                  >
+                    {p === 'nvidia' ? 'NVIDIA' : p === 'google' ? 'Google' : 'OpenCode'}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
             {providerTab === 'google' ? (
               <>
                 {dropdownGroups.google.map(opt => {
+                  const selected = opt.id === selectedModelId;
+                  return (
+                    <button key={opt.id} onClick={() => handleModelChange(opt.id)}
+                      className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
+                      style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span>{opt.label}</span>
+                      {selected && (
+                        <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            ) : providerTab === 'opencode' ? (
+              <>
+                {dropdownGroups.opencode.map(opt => {
                   const selected = opt.id === selectedModelId;
                   return (
                     <button key={opt.id} onClick={() => handleModelChange(opt.id)}
