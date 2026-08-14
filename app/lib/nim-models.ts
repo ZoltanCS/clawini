@@ -32,7 +32,7 @@ export const GEMINI_CATALOG: NimModel[] = [
 export const OPENCODE_CATALOG: NimModel[] = [
   { id: 'gpt-5.6-luna',  label: 'GPT-5.6 Luna', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'OpenCode Zen' },
   { id: 'grok-4.5',      label: 'Grok 4.5',     publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'OpenCode Zen' },
-  { id: 'qwen3.7-max',   label: 'Qwen3.7 Max',  publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'OpenCode Zen' },
+  { id: 'qwen3.7-plus',  label: 'Qwen3.7 Plus', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'OpenCode Zen' },
   { id: 'kimi-k2.6',     label: 'Kimi K2.6',    publisher: 'OpenCode', contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'OpenCode Zen' },
 ];
 

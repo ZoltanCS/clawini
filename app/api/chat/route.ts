@@ -21,7 +21,7 @@ const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
 const OPENCODE_MODELS = new Set([
   'gpt-5.6-luna',
   'grok-4.5',
-  'qwen3.7-max',
+  'qwen3.7-plus',
   'kimi-k2.6',
 ]);
 
