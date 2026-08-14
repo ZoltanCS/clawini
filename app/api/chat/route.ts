@@ -712,15 +712,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
       }
 
+      // Some OpenCode Zen upstream models (e.g. Qwen) reject array content or extra options;
+      // keep the body minimal and ensure every message content is a plain string.
+      const opencodeMessages = chatMessages.map((m: any) => ({
+        role: m.role,
+        content: Array.isArray(m.content) ? m.content.map((c: any) => c.text || '').join(' ') : String(m.content ?? ''),
+      }));
+
       const body: Record<string, any> = {
         model: modelId,
-        messages: chatMessages,
+        messages: opencodeMessages,
         stream: true,
-        stream_options: { include_usage: true },
         max_tokens: Math.min(maxTokens || 4096, 8192),
         temperature: temperature ?? 0.7,
         top_p: topP ?? 0.9,
-        frequency_penalty: frequencyPenalty ?? 0.3,
       };
       if (thinking) body.reasoning_effort = reasoningEffort || 'high';
 
