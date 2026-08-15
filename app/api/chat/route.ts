@@ -212,9 +212,11 @@ async function tavilySearch(query: string): Promise<TavilyResult[] | null> {
 }
 
 export async function POST(req: NextRequest) {
+  const requestStartAt = Date.now();
   try {
     const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort } = await req.json();
     const modelId = model || 'moonshotai/kimi-k2.6';
+    console.log('[chat] request received', { modelId, messageCount: messages?.length, elapsedMs: Date.now() - requestStartAt });
     const basePrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT;
     const fullPrompt = modelId.startsWith('grok-') ? basePrompt + GROK_SYSTEM_PROMPT_ADDON : basePrompt;
     const systemContent = buildRichSystemPrompt(fullPrompt);
@@ -557,6 +559,7 @@ export async function POST(req: NextRequest) {
         const responsesDebugPayload = { model: modelId, input, instructions: instructions || undefined };
         console.log('[OpenCode Responses payload]', JSON.stringify(responsesDebugPayload, null, 2));
 
+        console.log('[chat] sending to OpenCode /responses', { modelId, elapsedMs: Date.now() - requestStartAt });
         opencodeRes = await fetch(`${OPENCODE_BASE_URL}/responses`, {
           method: 'POST',
           headers: {
@@ -574,6 +577,7 @@ export async function POST(req: NextRequest) {
           }),
           signal: controller.signal,
         });
+        console.log('[chat] OpenCode /responses status', { status: opencodeRes.status, elapsedMs: Date.now() - requestStartAt });
       } else {
         const body: Record<string, any> = {
           model: modelId,
@@ -585,6 +589,7 @@ export async function POST(req: NextRequest) {
         };
         if (thinking) body.reasoning_effort = reasoningEffort || 'high';
 
+        console.log('[chat] sending to OpenCode /chat/completions', { modelId, elapsedMs: Date.now() - requestStartAt });
         opencodeRes = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -594,6 +599,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify(body),
           signal: controller.signal,
         });
+        console.log('[chat] OpenCode /chat/completions status', { status: opencodeRes.status, elapsedMs: Date.now() - requestStartAt });
       }
       clearTimeout(timeoutId);
 

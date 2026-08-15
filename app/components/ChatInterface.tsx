@@ -533,7 +533,10 @@ export default function ChatInterface() {
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
                 if (delta?.content) {
-                  if (firstTokenAtRef.current === null) firstTokenAtRef.current = performance.now();
+                  if (firstTokenAtRef.current === null) {
+                    firstTokenAtRef.current = performance.now();
+                    console.log('[TTFT]', firstTokenAtRef.current - streamStartRef.current, 'ms');
+                  }
                   streamCharsRef.current += delta.content.length;
                   accumulated += delta.content; scheduleFlush();
                 }
@@ -545,7 +548,10 @@ export default function ChatInterface() {
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
                 if (delta?.content) {
-                  if (firstTokenAtRef.current === null) firstTokenAtRef.current = performance.now();
+                  if (firstTokenAtRef.current === null) {
+                    firstTokenAtRef.current = performance.now();
+                    console.log('[TTFT]', firstTokenAtRef.current - streamStartRef.current, 'ms');
+                  }
                   streamCharsRef.current += delta.content.length;
                   accumulated += delta.content; scheduleFlush();
                 }
@@ -658,6 +664,9 @@ export default function ChatInterface() {
 
     try {
       if (abort.signal.aborted) { setStreamingContent(''); setThinkingContent(''); return; }
+      const requestStartAt = performance.now();
+      streamStartRef.current = requestStartAt;
+      firstTokenAtRef.current = null;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
