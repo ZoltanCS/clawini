@@ -64,7 +64,7 @@ const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
 
 // Models that natively accept image_url array content. Any model not in this set
 // will have images described by the vision proxy before being sent upstream.
-const NATIVE_VISION_MODELS = new Set([...VISION_MODELS, 'grok-4.5']);
+const NATIVE_VISION_MODELS = new Set([...VISION_MODELS, 'grok-4.5', 'gpt-5.6-luna']);
 
 function isGeminiModel(id: string): boolean {
   return GEMINI_MODELS.has(id) || id.startsWith('gemini-');
@@ -788,6 +788,10 @@ export async function POST(req: NextRequest) {
           content: toResponsesContent(m.content),
         }));
 
+        // Debug: log the exact payload sent to OpenCode Responses API
+        const responsesDebugPayload = { model: modelId, input, instructions: instructions || undefined };
+        console.log('[OpenCode Responses payload]', JSON.stringify(responsesDebugPayload, null, 2));
+
         opencodeRes = await fetch(`${OPENCODE_BASE_URL}/responses`, {
           method: 'POST',
           headers: {
@@ -831,6 +835,7 @@ export async function POST(req: NextRequest) {
       if (!opencodeRes.ok) {
         let err = '';
         try { err = await opencodeRes.text(); } catch {}
+        console.error('[OpenCode error]', opencodeRes.status, err);
 
         const message = opencodeRes.status === 401
           ? 'API key rejected - check OPENCODE_API_KEY'
