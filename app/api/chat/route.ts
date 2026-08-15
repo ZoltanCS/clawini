@@ -16,6 +16,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // OpenCode Zen (OpenAI-compatible endpoint)
 const OPENCODE_BASE_URL = process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1';
+// OpenCode Go endpoint for models that are only available there (e.g. Grok 4.5)
+const OPENCODE_GO_BASE_URL = process.env.OPENCODE_GO_BASE_URL || 'https://opencode.ai/go/v1';
 const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
 
 const OPENCODE_MODELS = new Set([
@@ -706,11 +708,14 @@ export async function POST(req: NextRequest) {
       return new Response(geminiRes.body, { headers: geminiHeaders });
     }
 
-    // --- OPENCODE ZEN: OpenAI-compatible chat/completions ---
+    // --- OPENCODE ZEN / GO: OpenAI-compatible chat/completions ---
     if (isOpenCodeModel(modelId)) {
       if (!OPENCODE_API_KEY) {
         return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
       }
+
+      // Grok models are hosted on the OpenCode Go endpoint rather than Zen.
+      const opencodeBaseUrl = modelId.startsWith('grok-') ? OPENCODE_GO_BASE_URL : OPENCODE_BASE_URL;
 
       // Some OpenCode Zen upstream models (e.g. Qwen) reject array content or extra options;
       // keep the body minimal and ensure every message content is a plain string.
@@ -732,7 +737,7 @@ export async function POST(req: NextRequest) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-      const opencodeRes = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
+      const opencodeRes = await fetch(`${opencodeBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
