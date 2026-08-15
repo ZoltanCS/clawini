@@ -25,9 +25,9 @@ const OPENCODE_MODELS = new Set([
   'kimi-k2.6',
 ]);
 
-// Some OpenCode models (Grok) use the Responses API (/responses) instead of
+// Some OpenCode models use the Responses API (/responses) instead of
 // chat completions (/chat/completions). See https://opencode.ai/docs/go/
-const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5']);
+const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5', 'gpt-5.6-luna']);
 
 const GEMINI_MODELS = new Set([
   'gemini-3.5-flash',
