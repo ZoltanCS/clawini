@@ -62,6 +62,10 @@ function useBedrockRuntime(id: string): boolean {
 const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
 const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
 
+// Models that natively accept image_url array content. Any model not in this set
+// will have images described by the vision proxy before being sent upstream.
+const NATIVE_VISION_MODELS = new Set([...VISION_MODELS, 'grok-4.5']);
+
 function isGeminiModel(id: string): boolean {
   return GEMINI_MODELS.has(id) || id.startsWith('gemini-');
 }
@@ -420,7 +424,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Vision proxy: if model doesn't support vision but user sent images
-    if (!VISION_MODELS.has(modelId)) {
+    if (!NATIVE_VISION_MODELS.has(modelId)) {
       const imageMessages = formattedMessages.filter((m: any) =>
         Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
       );
@@ -745,11 +749,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
       }
 
-      // Some OpenCode Zen upstream models (e.g. Qwen) reject array content or extra options;
-      // keep the body minimal and ensure every message content is a plain string.
+      // Preserve image content for OpenCode models. Chat/completions models accept
+      // the standard OpenAI image_url array; Responses API models need input_image items.
       const opencodeMessages = chatMessages.map((m: any) => ({
         role: m.role,
-        content: Array.isArray(m.content) ? m.content.map((c: any) => c.text || '').join(' ') : String(m.content ?? ''),
+        content: m.content,
       }));
 
       const controller = new AbortController();
@@ -758,7 +762,6 @@ export async function POST(req: NextRequest) {
       // Grok models are hosted behind the Responses API (/responses) instead
       // of chat completions (/chat/completions).
       const useResponsesApi = OPENCODE_RESPONSES_MODELS.has(modelId);
-      const opencodeEndpoint = useResponsesApi ? '/responses' : '/chat/completions';
 
       let opencodeRes: Response;
       if (useResponsesApi) {
@@ -767,9 +770,22 @@ export async function POST(req: NextRequest) {
         const systemMsgs = opencodeMessages.filter((m: any) => m.role === 'system');
         const conversationMsgs = opencodeMessages.filter((m: any) => m.role !== 'system');
         const instructions = systemMsgs.map((m: any) => m.content).join('\n\n');
+
+        function toResponsesContent(content: any): any {
+          if (typeof content === 'string') return content;
+          if (!Array.isArray(content)) return String(content ?? '');
+          return content.map((c: any) => {
+            if (c.type === 'text') return { type: 'input_text', text: c.text || '' };
+            if (c.type === 'image_url') {
+              return { type: 'input_image', image_url: c.image_url?.url || c.image_url };
+            }
+            return { type: 'input_text', text: String(c.text || c || '') };
+          });
+        }
+
         const input = conversationMsgs.map((m: any) => ({
           role: m.role,
-          content: m.content,
+          content: toResponsesContent(m.content),
         }));
 
         opencodeRes = await fetch(`${OPENCODE_BASE_URL}/responses`, {
