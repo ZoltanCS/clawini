@@ -16,8 +16,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // OpenCode Zen (OpenAI-compatible endpoint)
 const OPENCODE_BASE_URL = process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1';
-// OpenCode Go endpoint for models that are only available there (e.g. Grok 4.5)
-const OPENCODE_GO_BASE_URL = process.env.OPENCODE_GO_BASE_URL || 'https://opencode.ai/go/v1';
 const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
 
 const OPENCODE_MODELS = new Set([
@@ -26,6 +24,10 @@ const OPENCODE_MODELS = new Set([
   'qwen3.7-plus',
   'kimi-k2.6',
 ]);
+
+// Some OpenCode models (Grok) use the Responses API (/responses) instead of
+// chat completions (/chat/completions). See https://opencode.ai/docs/go/
+const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5']);
 
 const GEMINI_MODELS = new Set([
   'gemini-3.5-flash',
@@ -714,9 +716,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
       }
 
-      // Grok models are hosted on the OpenCode Go endpoint rather than Zen.
-      const opencodeBaseUrl = modelId.startsWith('grok-') ? OPENCODE_GO_BASE_URL : OPENCODE_BASE_URL;
-
       // Some OpenCode Zen upstream models (e.g. Qwen) reject array content or extra options;
       // keep the body minimal and ensure every message content is a plain string.
       const opencodeMessages = chatMessages.map((m: any) => ({
@@ -724,28 +723,64 @@ export async function POST(req: NextRequest) {
         content: Array.isArray(m.content) ? m.content.map((c: any) => c.text || '').join(' ') : String(m.content ?? ''),
       }));
 
-      const body: Record<string, any> = {
-        model: modelId,
-        messages: opencodeMessages,
-        stream: true,
-        max_tokens: Math.min(maxTokens || 4096, 8192),
-        temperature: temperature ?? 0.7,
-        top_p: topP ?? 0.9,
-      };
-      if (thinking) body.reasoning_effort = reasoningEffort || 'high';
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-      const opencodeRes = await fetch(`${opencodeBaseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENCODE_API_KEY}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      // Grok models are hosted behind the Responses API (/responses) instead
+      // of chat completions (/chat/completions).
+      const useResponsesApi = OPENCODE_RESPONSES_MODELS.has(modelId);
+      const opencodeEndpoint = useResponsesApi ? '/responses' : '/chat/completions';
+
+      let opencodeRes: Response;
+      if (useResponsesApi) {
+        // Responses API uses a flat input/conversation format.
+        // Flatten messages: system -> instructions, then the rest as input items.
+        const systemMsgs = opencodeMessages.filter((m: any) => m.role === 'system');
+        const conversationMsgs = opencodeMessages.filter((m: any) => m.role !== 'system');
+        const instructions = systemMsgs.map((m: any) => m.content).join('\n\n');
+        const input = conversationMsgs.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+        opencodeRes = await fetch(`${OPENCODE_BASE_URL}/responses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENCODE_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: modelId,
+            input,
+            ...(instructions ? { instructions } : {}),
+            stream: true,
+            max_output_tokens: Math.min(maxTokens || 4096, 8192),
+            temperature: temperature ?? 0.7,
+            top_p: topP ?? 0.9,
+          }),
+          signal: controller.signal,
+        });
+      } else {
+        const body: Record<string, any> = {
+          model: modelId,
+          messages: opencodeMessages,
+          stream: true,
+          max_tokens: Math.min(maxTokens || 4096, 8192),
+          temperature: temperature ?? 0.7,
+          top_p: topP ?? 0.9,
+        };
+        if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+
+        opencodeRes = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENCODE_API_KEY}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      }
       clearTimeout(timeoutId);
 
       if (!opencodeRes.ok) {
@@ -774,6 +809,64 @@ export async function POST(req: NextRequest) {
       };
       if (compactInfo) {
         opencodeHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
+      }
+
+      // The Responses API streams SSE events (event: response.output_text.delta / data: {delta:"..."})
+      // which the frontend doesn't understand. The frontend expects OpenAI chat/completions
+      // SSE format (data: {choices:[{delta:{content:"..."}}]}). Convert the stream.
+      if (useResponsesApi) {
+        const converted = new ReadableStream({
+          async start(controller) {
+            const encoder = new TextEncoder();
+            let sentDone = false;
+            const sendDone = () => {
+              if (!sentDone) {
+                sentDone = true;
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              }
+            };
+            try {
+              const reader = opencodeRes.body!.getReader();
+              let buffer = '';
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += new TextDecoder().decode(value);
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                  if (!line.startsWith('data: ')) continue;
+                  const data = line.slice(6).trim();
+                  if (data === '[DONE]') { sendDone(); break; }
+                  try {
+                    const evt = JSON.parse(data);
+                    if (evt.type === 'response.output_text.delta' && evt.delta) {
+                      const chunk = JSON.stringify({ choices: [{ delta: { content: evt.delta } }] });
+                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                    } else if (evt.type === 'response.reasoning.delta' && evt.delta) {
+                      const chunk = JSON.stringify({ choices: [{ delta: { reasoning_content: evt.delta } }] });
+                      controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+                    } else if (evt.type === 'response.completed' || evt.type === 'response.done') {
+                      sendDone();
+                    } else if (evt.type?.startsWith('response.error') || evt.error) {
+                      const errMsg = evt.error?.message || evt.message || 'Unknown Responses API error';
+                      const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Hiba: ${errMsg}]` } }] });
+                      controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
+                      sendDone();
+                    }
+                  } catch {}
+                }
+              }
+              sendDone();
+            } catch (e: any) {
+              const errChunk = JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] });
+              controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
+              sendDone();
+            }
+            controller.close();
+          },
+        });
+        return new Response(converted, { headers: opencodeHeaders });
       }
 
       return new Response(opencodeRes.body, { headers: opencodeHeaders });
