@@ -60,11 +60,6 @@ function useBedrockRuntime(id: string): boolean {
 }
 
 const VISION_MODELS = new Set(['minimaxai/minimax-m3', 'moonshotai/kimi-k2.6']);
-const VISION_PROXY_MODEL = 'minimaxai/minimax-m3';
-
-// Models that natively accept image_url array content. Any model not in this set
-// will have images described by the vision proxy before being sent upstream.
-const NATIVE_VISION_MODELS = new Set([...VISION_MODELS, 'grok-4.5', 'gpt-5.6-luna']);
 
 function isGeminiModel(id: string): boolean {
   return GEMINI_MODELS.has(id) || id.startsWith('gemini-');
@@ -74,105 +69,8 @@ function isOpenCodeModel(id: string): boolean {
   return OPENCODE_MODELS.has(id);
 }
 
-const VISION_DESCRIBE_PROMPT = `Describe every single image in ABSOLUTE EXTREME DETAIL. Be relentlessly thorough — leave NOTHING out.
-
-RULES:
-- Mention every visible object, person, animal, and item — including position, size, color, texture, orientation.
-- Describe spatial relationships precisely ("to the left of X, above Y, overlapping Z in the bottom-right corner").
-- Transcribe ALL visible text character-by-character if any exists.
-- Note lighting conditions, shadows, reflections, gradients, camera angle, depth of field.
-- Describe people: approximate age, gender, clothing, expression, pose, gaze direction.
-- Mention typography, logos, icons, UI elements, and their exact placement.
-- For scenes: describe the background, foreground, weather, time of day, architecture, vegetation.
-- For diagrams/charts: describe every data point, axis label, legend entry, trend line, color coding.
-- Estimate proportions and distances when relevant.
-
-Do NOT summarize. Do NOT interpret. Just describe. Every pixel matters.`;
-
-
 function getFallbackModels(modelId: string): string[] {
   return FALLBACK_CHAIN[modelId] || [modelId];
-}
-
-// Compact summary: one cheap NIM model (Kimi) condenses older messages.
-const COMPACT_MODEL = 'moonshotai/kimi-k2.6';
-const COMPACT_MAX_CHARS = 200000;
-const COMPACT_MAX_MESSAGES = 100;
-// Keep in sync with COMPACT_KEEP_RECENT in ChatInterface.tsx
-const COMPACT_KEEP_RECENT = 15;
-
-function msgText(m: any): string {
-  if (typeof m.content === 'string') return m.content;
-  if (Array.isArray(m.content)) return m.content.map((c: any) => c.text || '').join(' ');
-  return '';
-}
-
-function countMsg(m: any): number {
-  return msgText(m).length;
-}
-
-async function summarizeCompact(messages: any[], apiKey: string): Promise<{ messages: any[]; compactedMessages: number; compactedTokens: number }> {
-  const systemMsgs: any[] = [];
-  const rest: any[] = [];
-  for (const m of messages) {
-    if (m.role === 'system') systemMsgs.push(m);
-    else rest.push(m);
-  }
-  const totalChars = [...systemMsgs, ...rest].reduce((s, m) => s + countMsg(m), 0);
-  const overMessages = rest.length > COMPACT_MAX_MESSAGES;
-  const overChars = totalChars > COMPACT_MAX_CHARS;
-  if (!overMessages && !overChars) return { messages, compactedMessages: 0, compactedTokens: 0 };
-
-  const keep = rest.slice(-COMPACT_KEEP_RECENT);
-  const drop = rest.slice(0, Math.max(0, rest.length - COMPACT_KEEP_RECENT));
-  if (drop.length === 0) return { messages, compactedMessages: 0, compactedTokens: 0 };
-
-  let summary = '';
-  const dropText = drop.map((m: any) => m.role + ': ' + msgText(m)).join('\n\n');
-  try {
-    const res = await fetch(NIM_BASE_URL + '/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: COMPACT_MODEL,
-        messages: [
-          { role: 'system', content: 'Foglald ossze a beszelgetest tomor, hasznos szovegkent. Orizd meg a fontos tenyletek, keresetek, donteseket, kontextust. Irj magyarul, max ~3000 karakter.' },
-          { role: 'user', content: dropText },
-        ],
-        stream: false,
-        max_tokens: 800,
-        temperature: 0.3,
-      }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      summary = data.choices?.[0]?.message?.content || '';
-    }
-  } catch {}
-
-  const compactedTokens = Math.round(drop.reduce((s, m) => s + countMsg(m), 0) / 4);
-
-  if (summary) {
-    return {
-      messages: [...systemMsgs, { role: 'system', content: '[Korabbi beszergetes osszefoglalja]\n' + summary.trim() }, ...keep],
-      compactedMessages: drop.length,
-      compactedTokens,
-    };
-  }
-
-  // If the summary fails, keep only the most recent messages (character budget).
-  const budget = COMPACT_MAX_CHARS - systemMsgs.reduce((s, m) => s + countMsg(m), 0);
-  let used = 0;
-  const fallbackKeep: any[] = [];
-  for (let i = rest.length - 1; i >= 0; i--) {
-    const c = countMsg(rest[i]);
-    if (used + c <= budget || fallbackKeep.length < 2) {
-      fallbackKeep.unshift(rest[i]);
-      used += c;
-    } else break;
-  }
-  return { messages: [...systemMsgs, ...fallbackKeep], compactedMessages: 0, compactedTokens: 0 };
 }
 
 const GEMINI_FALLBACK_CHAIN: Record<string, string[]> = {
@@ -313,53 +211,24 @@ async function tavilySearch(query: string): Promise<TavilyResult[] | null> {
   }
 }
 
-function shouldAutoSearch(query: string): boolean {
-  const now = new Date();
-  const q = query.toLowerCase();
-  const currentYear = now.getFullYear().toString();
-
-  const dateTriggers = [
-    'today', 'now', 'latest', 'recent', 'current', 'news', 'weather',
-    'forecast', 'price', 'stock', 'score', 'election', 'covid', 'update',
-    'ma', 'most', 'friss', 'aktuális', 'legújabb', 'mai', 'ár', 'árfolyam',
-    'eredmény', 'hír', 'időjárás', 'előrejelzés',
-    currentYear, '2025', '2026', '2027',
-  ];
-  if (dateTriggers.some(t => q.includes(t))) return true;
-
-  const questionTriggers = [
-    'who is', 'what is', 'when did', 'where is', 'how to', 'how much',
-    'who was', 'what happened', 'tell me about', 'explain',
-    'mi az', 'mi a', 'ki az', 'ki volt', 'mikor', 'hol van', 'hogyan',
-    'mennyi', 'milyen', 'mesélj', 'mondd el', 'írd le',
-    'legújabb', 'aktuális', 'mai', 'utolsó', 'legfrissebb',
-  ];
-  if (questionTriggers.some(t => q.startsWith(t) || q.includes(t))) return true;
-
-  return false;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort, compactSummary } = await req.json();
+    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort } = await req.json();
     const modelId = model || 'moonshotai/kimi-k2.6';
     const basePrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT;
     const fullPrompt = modelId.startsWith('grok-') ? basePrompt + GROK_SYSTEM_PROMPT_ADDON : basePrompt;
     const systemContent = buildRichSystemPrompt(fullPrompt);
 
-    // Tavily web search
+    // Tavily web search — only when explicitly enabled
     let webContext = '';
-    if (webSearch && webSearch !== 'off') {
+    if (webSearch === 'on') {
       const lastUserMsg = messages.filter((m: any) => m.role === 'user').pop();
       if (lastUserMsg && lastUserMsg.content) {
-        const shouldSearch = webSearch === 'on' || shouldAutoSearch(lastUserMsg.content);
-        if (shouldSearch) {
-          const results = await tavilySearch(lastUserMsg.content);
-          if (results && results.length > 0) {
-            webContext = '\n\nWeb keresési eredmények:\n' + results.map((r, i) =>
-              `[${i + 1}] ${r.title}\n${r.content}\nForrás: ${r.url}`
-            ).join('\n\n');
-          }
+        const results = await tavilySearch(lastUserMsg.content);
+        if (results && results.length > 0) {
+          webContext = '\n\nWeb keresési eredmények:\n' + results.map((r, i) =>
+            `[${i + 1}] ${r.title}\n${r.content}\nForrás: ${r.url}`
+          ).join('\n\n');
         }
       }
     }
@@ -385,111 +254,11 @@ export async function POST(req: NextRequest) {
     });
     formattedMessages.unshift({ role: 'system', content: systemContent + webContext });
 
-    // Compact summary injection: az AI számára a régi üzeneteket kiváltjuk a compact összefoglalóval
-    let wasCompacted = false;
-    let compactedMessageCount = 0;
-    if (compactSummary && typeof compactSummary === 'string' && compactSummary.trim().length > 0) {
-      // Kihagyjuk az utolsó 15 nem-system üzenetet, a korábbiakat összefoglalóval helyettesítjük
-      const nonSystem = formattedMessages.filter((m: any) => m.role !== 'system');
-      const KEEP_RECENT = 15;
-      if (nonSystem.length > KEEP_RECENT) {
-        const toRemove = nonSystem.slice(0, nonSystem.length - KEEP_RECENT);
-        compactedMessageCount = toRemove.length;
-
-        const compactSystemMsg = { role: 'system' as const, content: `[Korábbi beszélgetés összefoglalója]\n\n${compactSummary}\n\n---\nA fenti a korábbi beszélgetés összefoglalója. Az alábbiak a legutóbbi üzenetek. A felhasználó továbbra is látja az összes üzenetet, de te csak az összefoglalból és az új üzenetekből dolgozz.` };
-
-        const result: any[] = [];
-        let systemInserted = false;
-        for (const msg of formattedMessages) {
-          if (msg.role === 'system') {
-            result.push(msg);
-            if (!systemInserted) {
-              result.push(compactSystemMsg);
-              systemInserted = true;
-            }
-          } else if (toRemove.includes(msg)) {
-            continue;
-          } else {
-            result.push(msg);
-          }
-        }
-        formattedMessages.length = 0;
-        formattedMessages.push(...result);
-        wasCompacted = true;
-      }
-    }
-
     if (!NIM_API_KEY) {
       return NextResponse.json({ error: 'API key not configured (set NVIDIA_NIM_API_KEY)' }, { status: 500 });
     }
 
-    // Vision proxy: if model doesn't support vision but user sent images
-    if (!NATIVE_VISION_MODELS.has(modelId)) {
-      const imageMessages = formattedMessages.filter((m: any) =>
-        Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
-      );
-      if (imageMessages.length > 0) {
-        const visionMessages = [
-          { role: 'system', content: VISION_DESCRIBE_PROMPT },
-          ...imageMessages.map((m: any) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        ];
-
-        try {
-          const visionRes = await fetch(`${NIM_BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${NIM_API_KEY}`,
-            },
-            body: JSON.stringify({
-              model: VISION_PROXY_MODEL,
-              messages: visionMessages,
-              stream: false,
-              max_tokens: 4096,
-              temperature: 0.2,
-            }),
-            signal: AbortSignal.timeout(60000),
-          });
-
-          if (visionRes.ok) {
-            const visionData = await visionRes.json();
-            const description = visionData.choices?.[0]?.message?.content || '';
-
-            if (description) {
-              for (const msg of formattedMessages) {
-                if (Array.isArray(msg.content)) {
-                  const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
-                  msg.content = `[Képek leírása: ${description}]\n\n${textParts}`;
-                }
-              }
-              const proxyInstruction = '\n\nA felhasználó képe(ke)t töltött fel. A [Képek leírása: ...] blokkokban találod a képek részletes leírását, amit egy külön képelemző modell készített. Válaszolj úgy a felhasználónak, mintha te magad látnád a képeket — soha ne utalj rá, hogy leírásból dolgozol. Ne használd a "kép alapján", "a leírás szerint", "az elemzés szerint" vagy ehhez hasonló kifejezéseket. Viselkedj úgy, mintha beépített vision képességed lenne.';
-              if (formattedMessages[0]?.role === 'system') {
-                formattedMessages[0].content += proxyInstruction;
-              }
-            }
-          }
-        } catch {
-          for (const msg of formattedMessages) {
-            if (Array.isArray(msg.content)) {
-              const textParts = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
-              msg.content = textParts || '(kép - nem sikerült leírni)';
-            }
-          }
-        }
-      }
-    }
-
-    // Compact: régi üzenetek összefoglalása egy olcsó NIM modellel (TTFT csökkentés)
-    const compacted = await summarizeCompact(formattedMessages, NIM_API_KEY);
-    const chatMessages = compacted.messages;
-    const compactInfo = wasCompacted
-      ? { messages: compactedMessageCount, tokens: 0 }
-      : compacted.compactedMessages > 0
-        ? { messages: compacted.compactedMessages, tokens: compacted.compactedTokens }
-        : null;
+    const chatMessages = formattedMessages;
 
     // --- BEDROCK-RUNTIME PATH: Claude + Nova models use Converse Stream API ---
     if (useBedrockRuntime(modelId)) {
@@ -736,10 +505,6 @@ export async function POST(req: NextRequest) {
       if (usedGemini !== modelId) {
         geminiHeaders['X-Fallback-Model'] = usedGemini;
       }
-      if (compactInfo) {
-        geminiHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
-      }
-
       return new Response(geminiRes.body, { headers: geminiHeaders });
     }
 
@@ -857,9 +622,6 @@ export async function POST(req: NextRequest) {
         'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no',
       };
-      if (compactInfo) {
-        opencodeHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
-      }
 
       // The Responses API streams SSE events (event: response.output_text.delta / data: {delta:"..."})
       // which the frontend doesn't understand. The frontend expects OpenAI chat/completions
@@ -985,9 +747,6 @@ export async function POST(req: NextRequest) {
     };
     if (usedModel !== modelId) {
       responseHeaders['X-Fallback-Model'] = usedModel;
-    }
-    if (compactInfo) {
-      responseHeaders['X-Compact-Info'] = `${compactInfo.messages};${compactInfo.tokens}`;
     }
 
     return new Response(nimRes.body, { headers: responseHeaders });
