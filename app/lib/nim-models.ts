@@ -24,8 +24,9 @@ const DEV_CATALOG: NimModel[] = [
 ];
 
 export const GEMINI_CATALOG: NimModel[] = [
-  { id: 'gemini-3-flash-preview',  label: 'Gemini 3 Flash (prev)', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Ingyenes, frontier-class Google' },
-  { id: 'gemini-3.1-flash-lite',   label: 'Gemini 3.1 Flash-Lite', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, gyors, olcsó' },
+  { id: 'gemini-3.6-flash',        label: 'Gemini 3.6 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Legújabb ingyenes Gemini Flash' },
+  { id: 'gemini-3-flash-preview',  label: 'Gemini 3 Flash (prev)', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, frontier-class Google' },
+  { id: 'gemini-3.1-flash-lite',   label: 'Gemini 3.1 Flash-Lite', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, gyors, olcsó' },
   { id: 'gemini-3.5-flash',        label: 'Gemini 3.5 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, frontier-class Google' },
 ];
 

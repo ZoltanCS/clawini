@@ -30,6 +30,7 @@ const OPENCODE_MODELS = new Set([
 const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5', 'gpt-5.6-luna']);
 
 const GEMINI_MODELS = new Set([
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
   'gemini-3-flash-preview',
@@ -538,7 +539,7 @@ export async function POST(req: NextRequest) {
         const conversationMsgs = opencodeMessages.filter((m: any) => m.role !== 'system');
         const instructions = systemMsgs.map((m: any) => m.content).join('\n\n');
 
-        function toResponsesContent(content: any): any {
+        const toResponsesContent = (content: any): any => {
           if (typeof content === 'string') return content;
           if (!Array.isArray(content)) return String(content ?? '');
           return content.map((c: any) => {
@@ -548,7 +549,7 @@ export async function POST(req: NextRequest) {
             }
             return { type: 'input_text', text: String(c.text || c || '') };
           });
-        }
+        };
 
         const input = conversationMsgs.map((m: any) => ({
           role: m.role,
