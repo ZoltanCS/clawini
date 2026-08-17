@@ -18,7 +18,6 @@ const NIM_CATALOG: NimModel[] = [
 const DEV_CATALOG: NimModel[] = [
   { id: 'mistralai/mistral-medium-3.5-128b',  label: 'Mistral Medium 3.5',  publisher: 'Mistral',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
   { id: 'thinkingmachines/inkling',           label: 'Inkling',             publisher: 'Thinking Machines', contextWindow: 131072, supportsVision: false, supportsThinking: true },
-  { id: 'deepseek-ai/deepseek-v4-flash',      label: 'DeepSeek V4 Flash',   publisher: 'DeepSeek', contextWindow: 131072, supportsVision: false, supportsThinking: true },
   { id: 'nvidia/nemotron-3-ultra-550b-a55b',  label: 'Nemotron 3 Ultra',    publisher: 'NVIDIA',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
 ];
 

@@ -43,7 +43,6 @@ const FALLBACK_CHAIN: Record<string, string[]> = {
   'moonshotai/kimi-k2.6':          ['minimaxai/minimax-m3'],
   'mistralai/mistral-medium-3.5-128b': ['moonshotai/kimi-k2.6'],
   'thinkingmachines/inkling':          ['z-ai/glm5'],
-  'deepseek-ai/deepseek-v4-flash':     ['moonshotai/kimi-k2.6'],
   'nvidia/nemotron-3-ultra-550b-a55b': ['z-ai/glm5'],
 };
 

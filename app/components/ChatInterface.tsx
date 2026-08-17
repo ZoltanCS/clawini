@@ -77,7 +77,6 @@ const MODEL_SHEET_OPTIONS = [
 const DEV_MODEL_OPTIONS = [
   { label: 'Mistral Medium 3.5',  id: 'mistralai/mistral-medium-3.5-128b' },
   { label: 'Inkling',             id: 'thinkingmachines/inkling' },
-  { label: 'DeepSeek V4 Flash',   id: 'deepseek-ai/deepseek-v4-flash' },
   { label: 'Nemotron 3 Ultra',    id: 'nvidia/nemotron-3-ultra-550b-a55b' },
 ] as const;
 
@@ -249,7 +248,6 @@ export default function ChatInterface() {
       'minimax/minimax-m1-80k': 'minimaxai/minimax-m3',
       'minimaxai/minimax-m3': 'minimaxai/minimax-m3',
       'minimax.minimax-m2.5': 'minimaxai/minimax-m3',
-      'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-flash',
       'moonshotai.kimi-k2.5': 'moonshotai/kimi-k2.6',
       'moonshotai/kimi-k2.5': 'moonshotai/kimi-k2.6',
       'global.amazon.nova-2-lite-v1:0': 'minimax.minimax-m2.5',
