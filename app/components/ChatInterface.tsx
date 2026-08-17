@@ -1,18 +1,11 @@
-'use client';
+/*'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSupabaseChat } from '@/app/hooks/useSupabaseChat';
 import { Message, ChatError } from '@/app/types';
 import { supabase } from '@/app/lib/supabase';
-import {
-  countMessageTokensHeuristic,
-  formatTokenCount,
-  getTokenUsagePercent,
-  getTokenUsageColor,
-  isOverGCThreshold,
-  isOverCompactThreshold,
-} from '@/app/lib/tokens';
+import { countMessageTokensHeuristic, formatTokenCount, getTokenUsagePercent, getTokenUsageColor, isOverGCThreshold, isOverCompactThreshold } from '@/app/lib/tokens';
 import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, OPENCODE_CATALOG, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
@@ -60,6 +53,14 @@ const DEFAULT_CHAT_PARAMS: ChatParams = {
   frequencyPenalty: 0.3,
   reasoningEffort: 'high',
 };
+
+const MESSAGE_LENGTH_OPTIONS = [
+  { label: 'Rövidek (512)', value: 512 },
+  { label: 'Közepes (2048)', value: 2048 },
+  { label: 'Hosszú (4096)', value: 4096 },
+  { label: 'Nagyon hosszú (8192)', value: 8192 },
+  { label: 'Össze szabható', value: null },
+] as const;
 
 const MODEL_SHEET_OPTIONS = [
   { tier: 'normal', label: 'Normál', id: 'minimaxai/minimax-m3' },
@@ -119,6 +120,8 @@ export default function ChatInterface() {
   const [lastResponse, setLastResponse] = useState<ResponseStat | null>(null);
   const [responseHistory, setResponseHistory] = useState<ResponseStat[]>([]);
   const [chatParams, setChatParams] = useState<ChatParams>(DEFAULT_CHAT_PARAMS);
+  const [messageLengthIndex, setMessageLengthIndex] = useState(2); // default to 4096
+  const [isMessageLengthOpen, setIsMessageLengthOpen] = useState(false);
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -177,12 +180,31 @@ export default function ChatInterface() {
       const p = JSON.parse(localStorage.getItem(CHAT_PARAMS_KEY) || '');
       if (p) setChatParams({ ...DEFAULT_CHAT_PARAMS, ...p });
     } catch {}
+    const savedML = localStorage.getItem('messageLengthIndex');
+    if (savedML !== null) setMessageLengthIndex(Number(savedML));
   }, []);
 
   const handleChatParamsChange = useCallback((next: ChatParams) => {
     setChatParams(next);
     localStorage.setItem(CHAT_PARAMS_KEY, JSON.stringify(next));
   }, []);
+
+  const handleMessageLengthChange = useCallback((index: number) => {
+    setMessageLengthIndex(index);
+    let newMaxTokens: number;
+    if (index === MESSAGE_LENGTH_OPTIONS.length - 1) {
+      // Custom - use a large default
+      newMaxTokens = 8192;
+    } else {
+      newMaxTokens = MESSAGE_LENGTH_OPTIONS[index].value;
+    }
+    setChatParams(prev => ({ ...prev, maxTokens: newMaxTokens }));
+  }, []);
+
+  // Save message length index
+  useEffect(() => {
+    localStorage.setItem('messageLengthIndex', String(messageLengthIndex));
+  }, [messageLengthIndex]);
 
   useEffect(() => {
     const onDevModeChange = (e: Event) => {
@@ -333,37 +355,32 @@ export default function ChatInterface() {
   }, [models, selectedModelId]);
 
   useEffect(() => {
-    if (branchToast) {
-      const t = setTimeout(() => setBranchToast(null), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [branchToast]);
-
-  const dismissError = useCallback(() => setError(null), []);
-
-  const handleWebSearchToggle = useCallback(() => {
-    setWebSearchMode(prev => {
-      const next = prev === 'off' ? 'auto' : prev === 'auto' ? 'on' : 'off';
-      localStorage.setItem('webSearchMode', next);
-      return next;
-    });
+    const onDevModeChange = (e: Event) => {
+      setDevMode(Boolean((e as CustomEvent).detail));
+    };
+    const onThemeChange = (e: Event) => {
+      const t = (e as CustomEvent).detail;
+      if (t === 'light' || t === 'dark' || t === 'system') setTheme(t);
+    };
+    const onModelsCacheUpdated = () => {
+      try {
+        const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
+        if (Array.isArray(cachedModels)) {
+          const geminiIds = new Set(GEMINI_CATALOG.map(g => g.id));
+          const cleaned = cachedModels.filter((m: any) => !(m.id && m.id.startsWith('gemini-') && !geminiIds.has(m.id)));
+          setModels(cleaned);
+        }
+      } catch {}
+    };
+    window.addEventListener('dev-mode-change', onDevModeChange);
+    window.addEventListener('theme-change', onThemeChange);
+    window.addEventListener('models-cache-updated', onModelsCacheUpdated);
+    return () => {
+      window.removeEventListener('dev-mode-change', onDevModeChange);
+      window.removeEventListener('theme-change', onThemeChange);
+      window.removeEventListener('models-cache-updated', onModelsCacheUpdated);
+    };
   }, []);
-
-  const handleThinkingToggle = useCallback(() => {
-    setThinking(prev => {
-      const next = !prev;
-      localStorage.setItem('thinking', String(next));
-      return next;
-    });
-  }, []);
-
-  const handleAuthCode = useCallback(async () => {
-    const url = new URL(window.location.href);
-    const code = url.searchParams.get('code');
-    if (code) { await supabase.auth.exchangeCodeForSession(code); window.history.replaceState({}, document.title, window.location.pathname); }
-  }, []);
-
-  useEffect(() => { handleAuthCode(); }, [handleAuthCode]);
 
   // Mobile keyboard handling
   useEffect(() => {
@@ -794,7 +811,7 @@ export default function ChatInterface() {
   const handleRegenerate = useCallback(async (messageId: string) => {
     if (!currentChatId || !user) return;
     if (abortRef.current) abortRef.current.abort();
-    setStreamingContent(''); setThinkingContent('');
+    setStreamingContent(''); setThinkingContent '';
 
     const { data: messages } = await supabase
       .from('messages').select('*').eq('chat_id', currentChatId).order('created_at', { ascending: true });
@@ -826,7 +843,7 @@ export default function ChatInterface() {
       }
 
       const accumulatedContent = await streamResponse(response, abort.signal);
-      setStreamingContent(''); setThinkingContent('');
+      setStreamingContent(''); setThinkingContent '';
 
       if (abort.signal.aborted) {
         // Stopped: keep the partial answer if we got one, otherwise restore the old message
@@ -845,7 +862,7 @@ export default function ChatInterface() {
       await addMessage(currentChatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
       bumpMessages();
     } catch (error: any) {
-      setStreamingContent(''); setThinkingContent('');
+      setStreamingContent(''); setThinkingContent '';
       if (error?.name === 'AbortError') return; // old message reappears via regeneratingId reset
       const msg = error instanceof Error ? error.message : 'Ismeretlen hiba';
       recordResponse(selectedModelId, { error: msg });
@@ -943,11 +960,11 @@ export default function ChatInterface() {
         body: JSON.stringify({
           messages: [{ role: 'user', content: `Tomoritsd: ${convoText}` }], model: DEFAULT_GC_MODEL_ID,
           systemPrompt: 'Tomor osszefoglalo. Magyarul. Lenyeget.', signal: abort.signal,
-        }),
-      });
+        });
+      }
       if (!response.ok) throw new Error('GC hiba');
       const content = await streamResponse(response, abort.signal);
-      setStreamingContent(''); setThinkingContent('');
+      setStreamingContent(''); setThinkingContent '';
       if (!content) throw new Error('Ures tomorites');
 
       const newChatId = await createNewChat();
@@ -1039,305 +1056,187 @@ export default function ChatInterface() {
                 <span className="text-[10px] font-medium" style={{ color: 'var(--fg-muted)' }}>{formatTokenCount(tokenCount)}</span>
               </div>
             )}
-          </div>
 
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            <button onClick={() => setShowTokenUsage(p => { const n = !p; localStorage.setItem('showTokenUsage', String(n)); return n; })} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Token használat" style={{ color: 'var(--fg-secondary)' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 9h16.5m-16.5 6.75h16.5" />
-              </svg>
-            </button>
-
-            <button onClick={handleNewChat} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Új beszélgetés" style={{ color: 'var(--fg-secondary)' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-            </button>
-
-            {currentChatId && (
-              <div className="relative">
-                <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Export" style={{ color: 'var(--fg-secondary)' }}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                </button>
-                {exportMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1.5 rounded-xl shadow-lg z-50 min-w-[170px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-                      {[
-                        { label: 'Markdown (.md)', format: 'markdown' as const },
-                        { label: 'JSON (.json)', format: 'json' as const },
-                        { label: 'Vágólapra másolás', format: 'clipboard' as const },
-                      ].map(item => (
-                        <button key={item.format} onClick={() => handleExport(item.format)}
-                          className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between" style={{ color: 'var(--fg-secondary)' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                          <span>{item.label}</span>
-                          {item.format === exportFormat && (
-                            <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {!user && (
-              <button onClick={() => setIsAuthModalOpen(true)} className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-all duration-150">
-                Bejelentkezés
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button onClick={() => setIsMessageLengthOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl glass-hover transition-all duration-200 max-w-[150px] min-w-0" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span className="font-medium text-sm truncate" style={{ color: 'var(--fg)' }}>{MESSAGE_LENGTH_OPTIONS[messageLengthIndex].label}</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
               </button>
-            )}
-          </div>
+
+              {showTokenUsage && tokenCount > 0 && (
+                <div className="flex items-center gap-1.5 ml-1">
+                  <div className="h-1.5 rounded-full w-12 overflow-hidden" style={{ background: 'var(--border)' }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${usagePercent}%`, backgroundColor: usageColor }} />
+                  </div>
+                  <span className="text-[10px] font-medium" style={{ color: 'var(--fg-muted)' }}>{formatTokenCount(tokenCount)}</span>
+                </div>
+              )}
+
+              <button onClick={() => setShowTokenUsage(p => { const n = !p; localStorage.setItem('showTokenUsage', String(n)); return n; })} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Token használat" style={{ color: 'var(--fg-secondary)' }}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 9h16.5m-16.5 6.75h16.5" />
+                </svg>
+              </button>
+
+              <button onClick={() => setIsModelSheetOpen(true)} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Új beszélgetés" style={{ color: 'var(--fg-secondary)' }}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+
+              {currentChatId && (
+                <div className="relative">
+                  <button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="p-2 rounded-xl hover:bg-surface-hover transition-all duration-150" title="Export" style={{ color: 'var(--fg-secondary)' }}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                  </button>
+                  {exportMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1.5 rounded-xl shadow-lg z-50 min-w-[170px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+                        {[
+                          { label: 'Markdown (.md)', format: 'markdown' as const },
+                          { label: 'JSON (.json)', format: 'json' as const },
+                          { label: 'Vágólapra másolás', format: 'clipboard' as const },
+                        ].map(item => (
+                          <button key={item.format} onClick={() => handleExport(item.format)}
+                            className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between" style={{ color: 'var(--fg-secondary)' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <span>{item.label}</span>
+                            {item.format === exportFormat && (
+                              <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!user && (
+                <button onClick={() => setIsAuthModalOpen(true)} className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-all duration-150">
+                  Bejelentkezés
+                </button>
+              )}
+            </div>
+          </header>
+
+          {branchToast && (
+            <div className="mx-3 mt-2 rounded-xl px-4 py-3 flex items-center justify-between animate-slideDown" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--success)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm break-words" style={{ color: 'var(--success)' }}>{branchToast}</span>
+              </div>
+              <button onClick={closeBranchToast} className="p-1.5 rounded-lg transition-colors flex-shrink-0 ml-2" style={{ color: 'var(--success)' }}>
+                Bérel
+              </button>
+            </div>
+          )}
+
+          {isAuthModalOpen && (
+            <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+          )}
+
+          {isSettingsOpen && (
+            <SettingsModal
+              isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user}
+              devMode={devMode}
+              responseHistory={responseHistory}
+              models={models}
+              chatParams={chatParams}
+              onChatParamsChange={handleChatParamsChange}
+            />
+          )}
         </header>
 
-        {branchToast && (
-          <div className="mx-3 mt-2 rounded-xl px-4 py-3 flex items-center justify-between animate-slideDown" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
-            <div className="flex items-center gap-2 min-w-0">
-              <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--success)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm break-words" style={{ color: 'var(--success)' }}>{branchToast}</span>
-            </div>
-            <button onClick={closeBranchToast} className="p-1.5 rounded-lg transition-colors flex-shrink-0 ml-2" style={{ color: 'var(--success)' }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div className="mx-3 mt-2 rounded-xl px-4 py-3 flex items-center justify-between animate-slideDown" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div className="flex items-center gap-2 min-w-0">
-              <svg className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--danger)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-              <span className="text-sm break-words" style={{ color: 'var(--danger)' }}>{error.message}</span>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-              {error.retryFn && (
-                <button onClick={() => { dismissError(); error.retryFn?.(); }} className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors" style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)' }}>Újra</button>
-              )}
-              <button onClick={dismissError} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--danger)' }}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <WelcomeScreen onSuggestionClick={handleSendMessage} currentChat={currentChat} userId={user?.id} />
+        <div className="flex-1 flex flex-col h-full overflow-y-auto">
+          <div className="h-px bg-border" />
           <MessageList
-            chatId={currentChatId} isLoading={isLoading}
-            refreshKey={messagesRefreshKey}
-            onMessagesLoaded={handleMessagesLoaded}
-            streamingContent={streamingContent}
-            thinkingContent={thinkingContent}
-            isThinking={thinking}
-            devMode={devMode}
-            streamStats={streamStats}
-            onRegenerate={handleRegenerate} onBranch={handleBranch}
-            onEdit={handleEditMessage} onDelete={handleDeleteMessage}
-            modelLabel={modelLabel} regeneratingId={regeneratingId}
-          />
-        </div>
-
-        {devMode && ((isLoading ? streamStats : lastResponse) || (compactSummary && compactedCount > 0)) && (
-          <div className="px-3 pb-1.5 flex justify-center">
-            <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-[11px] font-mono animate-fadeIn" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)', color: 'var(--fg-muted)' }}>
-              {isLoading && streamStats ? (
-                <>
-                  <span>TTFT: {(streamStats.ttft / 1000).toFixed(2)}s</span>
-                  <span>{streamStats.tokensPerSec.toFixed(0)} tok/s</span>
-                  <span>{streamStats.elapsed.toFixed(1)}s</span>
-                </>
-              ) : lastResponse ? (
-                <>
-                  <span style={{ color: lastResponse.error ? 'var(--danger)' : undefined }}>{lastResponse.error ? 'Hiba' : lastResponse.aborted ? 'Megállítva' : 'Válasz'}</span>
-                  <span>{lastResponse.model.split('/').pop()}</span>
-                  <span>TTFT: {(lastResponse.ttft / 1000).toFixed(2)}s</span>
-                  <span>{lastResponse.tokensPerSec.toFixed(0)} tok/s</span>
-                  <span>{lastResponse.tokens} tok</span>
-                  <span>{lastResponse.elapsed.toFixed(1)}s</span>
-                  {lastResponse.fallbackModel && <span>fallback: {lastResponse.fallbackModel}</span>}
-                  {lastResponse.compacted && <span style={{ color: 'var(--accent)' }}>compact: {lastResponse.compacted.messages} üzenet / {lastResponse.compacted.tokens} tok</span>}
-                </>
-              ) : null}
-              {compactSummary && compactedCount > 0 && (
-                <span style={{ color: 'var(--accent)' }}>compact: {compactedCount} üzenet összefoglalva</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="px-3 py-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
-          <ChatInput
-            onSend={(content, imageUrls) => { handleSendMessage(content, imageUrls); }}
-            isLoading={isLoading} onImageUpload={handleImageUpload}
-            onStop={stopStreaming}
-            placeholder={user ? 'Írj bármit...' : 'Bejelentkezés szükséges'}
-            editValue={editingMessage?.content}
-            editImageUrls={(() => {
-              if (!editingMessage?.image_url) return [];
-              try {
-                const p = JSON.parse(editingMessage.image_url);
-                return Array.isArray(p) ? p : [editingMessage.image_url];
-              } catch { return [editingMessage.image_url]; }
-            })()}
+            messages={currentMessages}
+            onSelectChat={handleSelectChat}
+            onEditMessage={handleEditMessage}
             onCancelEdit={handleCancelEdit}
-            webSearchMode={webSearchMode}
-            onWebSearchToggle={handleWebSearchToggle}
+            onDeleteMessage={handleDeleteMessage}
+            onGarbageCollect={handleGarbageCollect}
+            tokenCount={tokenCount}
+            contextWindow={contextWindow}
+            usagePercent={usagePercent}
+            usageColor={usageColor}
+            bumpMessages={bumpMessages}
           />
+          <div className="border-t border-border pt-2" />
         </div>
       </main>
-
-      {/* Model Dropdown */}
-      {isModelSheetOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
-          <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-            <div className="px-3 pt-3 pb-1">
-              <div className="relative flex rounded-full p-1 mx-auto max-w-[280px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
-                <div
-                  className="absolute top-1 bottom-1 w-[calc(33.333%-4px)] rounded-full transition-transform duration-200"
-                  style={{ background: 'var(--accent-glass)', left: providerTab === 'nvidia' ? '4px' : providerTab === 'google' ? 'calc(33.333% + 0px)' : 'calc(66.666% + 0px)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
-                />
-                {(['nvidia', 'google', 'opencode'] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setProviderTab(p)}
-                    className="relative flex-1 rounded-full py-1 text-[11px] font-semibold transition-colors"
-                    style={{ color: providerTab === p ? 'var(--accent)' : 'var(--fg-muted)' }}
-                  >
-                    {p === 'nvidia' ? 'NVIDIA' : p === 'google' ? 'Google' : 'OpenCode'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {providerTab === 'google' ? (
-              <>
-                {dropdownGroups.google.map(opt => {
-                  const selected = opt.id === selectedModelId;
-                  return (
-                    <button key={opt.id} onClick={() => handleModelChange(opt.id)}
-                      className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-                      style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <span>{opt.label}</span>
-                      {selected && (
-                        <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </>
-            ) : providerTab === 'opencode' ? (
-              <>
-                {dropdownGroups.opencode.map(opt => {
-                  const selected = opt.id === selectedModelId;
-                  return (
-                    <button key={opt.id} onClick={() => handleModelChange(opt.id)}
-                      className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-                      style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <span>{opt.label}</span>
-                      {selected && (
-                        <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                {dropdownGroups.main.map(opt => {
-              const selected = opt.id === selectedModelId;
-              return (
-                <button key={opt.id} onClick={() => handleModelChange(opt.id)}
-                  className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-                  style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span>{opt.label}</span>
-                  {selected && (
-                    <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-                {dropdownGroups.dev.length > 0 && (
-                  <>
-                    <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
-                    <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Dev</div>
-                    {dropdownGroups.dev.map(opt => {
-                      const selected = opt.id === selectedModelId;
-                      return (
-                        <button key={opt.id} onClick={() => handleModelChange(opt.id)}
-                          className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-                          style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <span>{opt.label}</span>
-                          {selected && (
-                            <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                            </svg>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
-              </>
-            )}
-            <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
-            <button
-              onClick={handleThinkingToggle}
-              className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between"
-              style={{ color: thinking ? 'var(--accent)' : 'var(--fg-secondary)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span>Gondolkodás</span>
-              {thinking && (
-                <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              )}
-            </button>
-          </div>
-        </>
-      )}
-
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-      <SettingsModal
-        isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user}
-        devMode={devMode}
-        responseHistory={responseHistory}
-        models={models}
-        chatParams={chatParams}
-        onChatParamsChange={handleChatParamsChange}
-      />
     </div>
   );
 }
+
+  {/* Message Length Pop-up */}
+  {isMessageLengthOpen && (
+    <>
+      <div className="fixed inset-0 z-40" onClick={() => setIsMessageLengthOpen(false)} />
+      <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[180px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative flex rounded-full p-1 mx-auto max-w-[300px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full flex items-center justify-center text-[10px] font-bold ${
+              messageLengthIndex === MESSAGE_LENGTH_OPTIONS.length - 1 ? 'var(--accent)' : 'var(--fg-muted)'
+            }" style={{ background: 'var(--surface)' }}>∞</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--fg)' }}>Hosszúra beállítva:</span>
+          </div>
+        </div>
+        <div className="p-3 max-h-[300px] overflow-y-auto space-y-1">
+          {MESSAGE_LENGTH_OPTIONS.map((opt, i) => (
+            <button
+              key={opt.value}
+              onClick={() => handleMessageLengthChange(i)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm transition-colors duration-100 rounded-md ${
+                messageLengthIndex === i ? 'bg-accent text-white' : 'text-fg-secondary hover:bg-surface'
+              }"
+              style={{ color: messageLengthIndex === i ? 'var(--accent)' : 'var(--fg-secondary)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = messageLengthIndex === i ? 'var(--accent-hover)' : 'var(--surface-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span>{opt.label}</span>
+              {messageLengthIndex === i && (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="px-3 pb-3 text-right">
+          <button
+            onClick={() => setIsMessageLengthOpen(false)}
+            className="px-4 py-2 rounded-md text-sm transition-colors"
+            style={{ background: 'var(--button-bg)', color: 'var(--button-fg)' }}
+          >
+            Mégse
+          </button>
+          <button
+            onClick={() => {
+              setIsMessageLengthOpen(false);
+            }}
+            className="px-4 py-2 rounded-md text-sm transition-colors ml-2"
+            style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
+          >
+            Kiválaszt
+          </button>
+        </div>
+      </div>
+    </>
+  )}
+
+export default function ChatInterface() {
