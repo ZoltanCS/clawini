@@ -12,7 +12,6 @@ export interface NimModel {
 const NIM_CATALOG: NimModel[] = [
   { id: 'minimaxai/minimax-m3',            label: 'MiniMax M3',      publisher: 'MiniMax',     contextWindow: 1000000, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, multimodális' },
   { id: 'z-ai/glm5',                       label: 'GLM-5',           publisher: 'Zhipu AI',    contextWindow: 131072,  supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Okos, gyors Zhipu' },
-  { id: 'deepseek-ai/deepseek-v4-pro',     label: 'DeepSeek V4 Pro', publisher: 'DeepSeek',    contextWindow: 131072,  supportsVision: false, supportsThinking: true, tier: 'ultra', description: 'Ultra intelligens DeepSeek' },
   { id: 'moonshotai/kimi-k2.6',            label: 'Kimi K2.6',       publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
 ];
 

@@ -72,7 +72,6 @@ const MESSAGE_LENGTH_OPTIONS = [
 const MODEL_SHEET_OPTIONS = [
   { tier: 'normal', label: 'Normál', id: 'minimaxai/minimax-m3' },
   { tier: 'smart',  label: 'Okos',   id: 'z-ai/glm5' },
-  { tier: 'ultra',  label: 'Ultra',  id: 'deepseek-ai/deepseek-v4-pro' },
 ] as const;
 
 const DEV_MODEL_OPTIONS = [
@@ -250,14 +249,13 @@ export default function ChatInterface() {
       'minimax/minimax-m1-80k': 'minimaxai/minimax-m3',
       'minimaxai/minimax-m3': 'minimaxai/minimax-m3',
       'minimax.minimax-m2.5': 'minimaxai/minimax-m3',
-      'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-pro',
-      'deepseek-ai/deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
+      'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-flash',
       'moonshotai.kimi-k2.5': 'moonshotai/kimi-k2.6',
       'moonshotai/kimi-k2.5': 'moonshotai/kimi-k2.6',
       'global.amazon.nova-2-lite-v1:0': 'minimax.minimax-m2.5',
       'arn:aws:bedrock:us-east-1:936854375954:inference-profile/us.amazon.nova-lite-v1:0': 'minimax.minimax-m2.5',
       'eu.anthropic.claude-sonnet-4-6': 'z-ai/glm5',
-      'global.anthropic.claude-opus-4-6-v1': 'deepseek-ai/deepseek-v4-pro',
+      'global.anthropic.claude-opus-4-6-v1': 'z-ai/glm5',
     };
     const migratedModel = savedModel ? (modelIdMigration[savedModel] || savedModel) : null;
     if (migratedModel) {
