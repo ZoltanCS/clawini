@@ -62,11 +62,11 @@ const DEFAULT_CHAT_PARAMS: ChatParams = {
 };
 
 const MESSAGE_LENGTH_OPTIONS = [
-  { label: 'Rövidek (512)', value: 512 },
-  { label: 'Közepes (2048)', value: 2048 },
-  { label: 'Hosszú (4096)', value: 4096 },
-  { label: 'Nagyon hosszú (8192)', value: 8192 },
-  { label: 'Egyéni', value: null },
+  { label: 'Rövid', instruction: 'A válasz legyen rövid: maximum 1-3 mondat, tömör és lényegre törő.' },
+  { label: 'Közepes', instruction: 'A válasz legyen közepes hosszúságú: körülbelül 3-6 mondat, rövid magyarázattal.' },
+  { label: 'Hosszú', instruction: 'A válasz legyen hosszabb: részletes, 6-12 mondatos kifejtés.' },
+  { label: 'Nagyon hosszú', instruction: 'A válasz legyen nagyon részletes: hosszú, alapos kifejtés minden szempontot lefedve.' },
+  { label: 'Nincs megadva', instruction: '' },
 ] as const;
 
 const MODEL_SHEET_OPTIONS = [
@@ -127,8 +127,10 @@ export default function ChatInterface() {
   const [lastResponse, setLastResponse] = useState<ResponseStat | null>(null);
   const [responseHistory, setResponseHistory] = useState<ResponseStat[]>([]);
   const [chatParams, setChatParams] = useState<ChatParams>(DEFAULT_CHAT_PARAMS);
-  const [messageLengthIndex, setMessageLengthIndex] = useState(2); // default to Hosszú (4096)
+  const [messageLengthIndex, setMessageLengthIndex] = useState(4); // default: Nincs megadva
   const [isMessageLengthOpen, setIsMessageLengthOpen] = useState(false);
+  const messageLengthIndexRef = useRef(messageLengthIndex);
+  messageLengthIndexRef.current = messageLengthIndex;
   const gcTriggeredRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const partialContentRef = useRef<string>('');
@@ -198,8 +200,6 @@ export default function ChatInterface() {
 
   const handleMessageLengthChange = useCallback((index: number) => {
     setMessageLengthIndex(index);
-    const newMaxTokens = MESSAGE_LENGTH_OPTIONS[index].value ?? 8192;
-    setChatParams(prev => ({ ...prev, maxTokens: newMaxTokens }));
     localStorage.setItem('messageLengthIndex', String(index));
   }, []);
 
@@ -435,7 +435,11 @@ export default function ChatInterface() {
     } catch {}
   }, [updateChatTitle]);
 
-  const getSystemPrompt = () => localStorage.getItem('systemPrompt') || '';
+  const getSystemPrompt = () => {
+    const base = localStorage.getItem('systemPrompt') || '';
+    const instruction = MESSAGE_LENGTH_OPTIONS[messageLengthIndexRef.current]?.instruction || '';
+    return instruction ? `${base}\n\n## VÁLASZ HOSSZA\n${instruction}`.trim() : base;
+  };
 
   const loadChatCompactInfo = useCallback(async (chatId: string) => {
     const { data } = await supabase
@@ -1372,7 +1376,7 @@ export default function ChatInterface() {
             <div className="p-1.5 space-y-0.5 max-h-[300px] overflow-y-auto">
               {MESSAGE_LENGTH_OPTIONS.map((opt, i) => (
                 <button
-                  key={opt.value}
+                  key={opt.label}
                   onClick={() => { handleMessageLengthChange(i); setIsMessageLengthOpen(false); }}
                   className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between rounded-lg"
                   style={{ color: messageLengthIndex === i ? 'var(--accent)' : 'var(--fg-secondary)' }}
