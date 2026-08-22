@@ -83,6 +83,25 @@ function getGeminiFallbacks(modelId: string): string[] {
   return GEMINI_FALLBACK_CHAIN[modelId] || [];
 }
 
+// Google cannot fetch remote image URLs (e.g. Supabase storage) server-side,
+// so every image must be inlined as a base64 data URI before sending.
+async function toDataUri(url: string, cache: Map<string, string>): Promise<string | null> {
+  if (url.startsWith('data:')) return url;
+  const cached = cache.get(url);
+  if (cached) return cached;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    const contentType = (res.headers.get('content-type') || 'image/png').split(';')[0];
+    const buf = Buffer.from(await res.arrayBuffer());
+    const dataUri = `data:${contentType};base64,${buf.toString('base64')}`;
+    cache.set(url, dataUri);
+    return dataUri;
+  } catch {
+    return null;
+  }
+}
+
 const SYSTEM_PROMPT_DEFAULT = `## IDENTITY
 You are Marci — a sharp, casual, well-informed 24-year-old (persona). You talk like a smart friend on chat, not a corporate assistant.
 
@@ -513,19 +532,37 @@ export async function POST(req: NextRequest) {
       }
 
       const candidates = [modelId, ...getGeminiFallbacks(modelId).filter(m => m !== modelId)];
+
+      // Inline remote images as base64 data URIs (cached per request so history
+      // replay doesn't re-download the same picture for every turn).
+      const geminiImgCache = new Map<string, string>();
+      const geminiMessages = await Promise.all(chatMessages.map(async (m: any) => {
+        if (!Array.isArray(m.content)) return m;
+        const content = await Promise.all(m.content.map(async (c: any) => {
+          if (c.type !== 'image_url' || !c.image_url?.url) return c;
+          const uri = await toDataUri(c.image_url.url, geminiImgCache);
+          return uri ? { type: 'image_url', image_url: { url: uri } } : { type: 'text', text: '[kép nem töltődött be]' };
+        }));
+        return { ...m, content };
+      }));
+
       let geminiRes: Response | null = null;
       let usedGemini = modelId;
 
       for (const candidate of candidates) {
         const body: Record<string, any> = {
           model: candidate,
-          messages: chatMessages,
+          messages: geminiMessages,
           stream: true,
-          max_tokens: Math.min(maxTokens || 4096, 8192),
+          // Thinking tokens count toward the output limit, so give headroom when on
+          max_tokens: Math.min(maxTokens || 4096, thinking ? 16384 : 8192),
           temperature: temperature ?? 0.7,
           top_p: topP ?? 0.9,
         };
-        if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+        // Gemini Flash thinks by default when no effort is sent, so the toggle
+        // must be explicit in both directions: 'none' disables thinking,
+        // otherwise the selected low/medium/high applies.
+        body.reasoning_effort = thinking ? (reasoningEffort || 'high') : 'none';
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000);
