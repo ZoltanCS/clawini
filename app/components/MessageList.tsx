@@ -45,6 +45,56 @@ function TypingIndicator({ modelLabel = 'AI' }: { modelLabel?: string }) {
   );
 }
 
+const THINKING_PREVIEW_CHARS = 180;
+
+function ThinkingPreview({ content, hasAnswer }: { content: string; hasAnswer: boolean }) {
+  const [open, setOpen] = useState(false);
+  const fullRef = useRef<HTMLDivElement>(null);
+
+  // Collapse automatically once the actual answer starts streaming
+  useEffect(() => {
+    if (hasAnswer) setOpen(false);
+  }, [hasAnswer]);
+
+  // Keep the expanded view pinned to the newest thought
+  useEffect(() => {
+    if (open && fullRef.current) fullRef.current.scrollTop = fullRef.current.scrollHeight;
+  }, [content, open]);
+
+  const trimmed = content.trim();
+  const preview = trimmed.length > THINKING_PREVIEW_CHARS ? '…' + trimmed.slice(-THINKING_PREVIEW_CHARS) : trimmed;
+
+  return (
+    <div className="flex justify-start mb-4">
+      <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+        <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 text-left">
+          <svg className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} style={{ color: 'var(--fg-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+          <span className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--fg-muted)' }}>Gondolkodás...</span>
+          {!trimmed && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
+            </span>
+          )}
+        </button>
+        {!open && trimmed && (
+          <div className="mt-1.5 text-xs leading-relaxed break-words" style={{ color: 'var(--fg-muted)', opacity: 0.7 }}>
+            {preview}
+          </div>
+        )}
+        {open && (
+          <div ref={fullRef} className="mt-1.5 max-h-56 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)' }}>
+            {trimmed}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessagesLoaded, streamingContent, thinkingContent, isThinking, devMode, streamStats, onRegenerate, onBranch, onEdit, onDelete, modelLabel = 'AI', regeneratingId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -184,26 +234,7 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
           </div>
         ))}
         {isThinking && isLoading && (
-          <div className="flex justify-start mb-4">
-            <div className="max-w-[88%] sm:max-w-[75%] px-4 py-3 rounded-2xl" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Gondolkodás...</span>
-                {!thinkingContent && (
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full typing-dot" />
-                  </span>
-                )}
-                {devMode && streamStats && (
-                  <span className="text-[11px] font-mono ml-1" style={{ color: 'var(--fg-muted)' }}>{streamStats.elapsed.toFixed(1)}s</span>
-                )}
-              </div>
-              {thinkingContent && (
-                <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-muted)' }}>{thinkingContent}</div>
-              )}
-            </div>
-          </div>
+          <ThinkingPreview content={thinkingContent || ''} hasAnswer={Boolean(streamingContent)} />
         )}
         {streamingContent && (
           <div className="flex justify-start mb-4">

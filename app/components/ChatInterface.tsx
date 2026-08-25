@@ -135,6 +135,7 @@ export default function ChatInterface() {
   const thinkingContentRef = useRef<string>('');
   const compactingRef = useRef(false);
   const pendingChatIdRef = useRef<string | null>(null);
+  const memoryThrottleRef = useRef(0);
   const streamStartRef = useRef(0);
   const firstTokenAtRef = useRef<number | null>(null);
   const streamCharsRef = useRef(0);
@@ -398,37 +399,9 @@ export default function ChatInterface() {
   }, []);
 
   const generateChatTitle = useCallback(async (chatId: string, firstMessage: string) => {
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: `Csinálj rövid címet (max 5 szó) ennek: "${firstMessage.substring(0, 200)}". Csak a címet.` }],
-          model: DEFAULT_GC_MODEL_ID,
-        }),
-      });
-      if (!res.ok) return;
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let title = '';
-      let buffer = '';
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          // Buffer across chunks: SSE lines can be split between reads
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            const t = line.trim();
-            if (!t.startsWith('data: ') || t === 'data: [DONE]') continue;
-            try { title += JSON.parse(t.slice(6)).choices?.[0]?.delta?.content || ''; } catch {}
-          }
-        }
-      }
-      title = title.trim().replace(/^["']|["']$/g, '').replace(/^(Cím:|Title:)\s*/i, '');
-      if (title.length > 3 && title.length < 100) await updateChatTitle(chatId, title);
-    } catch {}
+    // Simple client-side title: first 5 words of the message
+    const words = firstMessage.trim().split(/\s+/).slice(0, 5).join(' ');
+    if (words.length > 3) await updateChatTitle(chatId, words);
   }, [updateChatTitle]);
 
   const getSystemPrompt = () => {
@@ -665,24 +638,26 @@ export default function ChatInterface() {
       setEditingMessage(null);
       bumpMessages();
     } else {
-      const { data: freshMessages } = await supabase
-        .from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
       const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
-      allMessages = [...(freshMessages || []).map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
 
-      if (freshMessages?.length === 0 && !hasGeneratedTitle.has(chatId)) {
+      const [freshRes] = await Promise.all([
+        supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true }),
+        addMessage(chatId, 'user', content, imageUrls),
+      ]);
+      const freshMessages = freshRes.data || [];
+      allMessages = [...freshMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
+      bumpMessages();
+
+      if (freshMessages.length === 0 && !hasGeneratedTitle.has(chatId)) {
         generateChatTitle(chatId, content);
         setHasGeneratedTitle(prev => new Set(prev).add(chatId));
       }
-
-      await addMessage(chatId, 'user', content, imageUrls);
-      bumpMessages();
     }
 
     const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
-      setTokenCount(heuristicTokens);
+    setTokenCount(heuristicTokens);
 
-    if (isOverCompactThreshold(allMessages.length, heuristicTokens, compactSummary !== null)) {
+    if (!compactingRef.current && isOverCompactThreshold(allMessages.length, heuristicTokens, compactSummary !== null)) {
       fireCompact(chatId, allMessages);
     }
 
@@ -724,8 +699,9 @@ export default function ChatInterface() {
       await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
       bumpMessages();
 
-      // Background: extract memories
-      if (user && accumulatedContent) {
+      // Background: extract memories (throttled: every 5th message only)
+      memoryThrottleRef.current++;
+      if (user && accumulatedContent && memoryThrottleRef.current % 5 === 0) {
         fetch('/api/memory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
