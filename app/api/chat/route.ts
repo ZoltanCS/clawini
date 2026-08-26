@@ -430,53 +430,16 @@ export async function POST(req: NextRequest) {
       let geminiRes: Response | null = null;
       let usedGemini = modelId;
 
-      // Try first 2 candidates in parallel
-      const parallelCandidates = candidates.slice(0, Math.min(2, candidates.length));
-      const parallelResults = await Promise.allSettled(
-        parallelCandidates.map(async (candidate) => {
-          const body: Record<string, any> = {
-            model: candidate,
-            messages: geminiMessages,
-            stream: true,
-            max_tokens: Math.min(maxTokens || 4096, thinking ? 16384 : 8192),
-            temperature: temperature ?? 0.7,
-            top_p: topP ?? 0.9,
-          };
-          body.reasoning_effort = thinking ? (reasoningEffort || 'high') : 'none';
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 120000);
-          try {
-            const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GEMINI_API_KEY}` },
-              body: JSON.stringify(body),
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-            return { candidate, res };
-          } catch (e) { clearTimeout(timeoutId); throw e; }
-        })
-      );
-
-      for (const result of parallelResults) {
-        if (result.status === 'fulfilled' && result.value.res.ok) {
-          geminiRes = result.value.res;
-          usedGemini = result.value.candidate;
-          break;
-        }
-      }
-
-      // Sequential fallback for remaining candidates
-      if (!geminiRes) {
-        for (const candidate of candidates.slice(parallelCandidates.length)) {
-          const body: Record<string, any> = {
-            model: candidate, messages: geminiMessages, stream: true,
-            max_tokens: Math.min(maxTokens || 4096, thinking ? 16384 : 8192),
-            temperature: temperature ?? 0.7, top_p: topP ?? 0.9,
-          };
-          body.reasoning_effort = thinking ? (reasoningEffort || 'high') : 'none';
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 120000);
+      for (const candidate of candidates) {
+        const body: Record<string, any> = {
+          model: candidate, messages: geminiMessages, stream: true,
+          max_tokens: Math.min(maxTokens || 4096, thinking ? 16384 : 8192),
+          temperature: temperature ?? 0.7, top_p: topP ?? 0.9,
+        };
+        body.reasoning_effort = thinking ? (reasoningEffort || 'high') : 'none';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+        try {
           const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GEMINI_API_KEY}` },
@@ -487,17 +450,14 @@ export async function POST(req: NextRequest) {
           if (res.status === 401 || res.status === 429) {
             return NextResponse.json({ error: res.status === 401 ? 'API key rejected' : 'Rate limited' }, { status: res.status });
           }
+        } catch (e) {
+          clearTimeout(timeoutId);
+          continue;
         }
       }
 
       if (!geminiRes) {
-        const firstErr = parallelResults.find(r => r.status === 'fulfilled' && !r.value.res.ok);
-        if (firstErr && firstErr.status === 'fulfilled') {
-          const s = firstErr.value.res.status;
-          if (s === 401 || s === 429) return NextResponse.json({ error: s === 401 ? 'API key rejected' : 'Rate limited' }, { status: s });
-          return NextResponse.json({ error: `API error ${s}` }, { status: s });
-        }
-        return NextResponse.json({ error: 'All candidates failed' }, { status: 502 });
+        return NextResponse.json({ error: 'All Gemini candidates failed' }, { status: 502 });
       }
 
       if (!geminiRes || !geminiRes.body) {
@@ -701,65 +661,21 @@ export async function POST(req: NextRequest) {
     let nimRes: Response | null = null;
     let usedModel = modelId;
 
-    // Try first 2 candidates in parallel, pick the first OK
-    const parallelCandidates = candidates.slice(0, Math.min(2, candidates.length));
-    const parallelResults = await Promise.allSettled(
-      parallelCandidates.map(async (candidate) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
-        const body: Record<string, any> = {
-          model: candidate,
-          messages: chatMessages,
-          stream: true,
-          stream_options: { include_usage: true },
-          max_tokens: Math.min(maxTokens || 4096, 8192),
-          temperature: temperature ?? 0.7,
-          top_p: topP ?? 0.9,
-          frequency_penalty: frequencyPenalty ?? 0.3,
-        };
-        if (thinking) body.reasoning_effort = reasoningEffort || 'high';
-        try {
-          const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${NIM_API_KEY}` },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-          return { candidate, res };
-        } catch (e) {
-          clearTimeout(timeoutId);
-          throw e;
-        }
-      })
-    );
-
-    // Pick first successful parallel result
-    for (const result of parallelResults) {
-      if (result.status === 'fulfilled' && result.value.res.ok) {
-        nimRes = result.value.res;
-        usedModel = result.value.candidate;
-        break;
-      }
-    }
-
-    // Fallback: try remaining candidates sequentially
-    if (!nimRes) {
-      const remaining = candidates.slice(parallelCandidates.length);
-      for (const candidate of remaining) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
-        const body: Record<string, any> = {
-          model: candidate,
-          messages: chatMessages,
-          stream: true,
-          stream_options: { include_usage: true },
-          max_tokens: Math.min(maxTokens || 4096, 8192),
-          temperature: temperature ?? 0.7,
-          top_p: topP ?? 0.9,
-          frequency_penalty: frequencyPenalty ?? 0.3,
-        };
-        if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+    for (const candidate of candidates) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const body: Record<string, any> = {
+        model: candidate,
+        messages: chatMessages,
+        stream: true,
+        stream_options: { include_usage: true },
+        max_tokens: Math.min(maxTokens || 4096, 8192),
+        temperature: temperature ?? 0.7,
+        top_p: topP ?? 0.9,
+        frequency_penalty: frequencyPenalty ?? 0.3,
+      };
+      if (thinking) body.reasoning_effort = reasoningEffort || 'high';
+      try {
         const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${NIM_API_KEY}` },
@@ -769,23 +685,12 @@ export async function POST(req: NextRequest) {
         clearTimeout(timeoutId);
         if (res.ok) { nimRes = res; usedModel = candidate; break; }
         if (res.status === 401 || res.status === 429) {
-          const message = res.status === 401 ? 'API key rejected' : 'Rate limited';
-          return NextResponse.json({ error: message }, { status: res.status });
+          return NextResponse.json({ error: res.status === 401 ? 'API key rejected' : 'Rate limited' }, { status: res.status });
         }
+      } catch (e) {
+        clearTimeout(timeoutId);
+        continue;
       }
-    }
-
-    // If all parallel failed with 401/429, propagate the error
-    if (!nimRes) {
-      const firstErr = parallelResults.find(r => r.status === 'fulfilled' && !r.value.res.ok);
-      if (firstErr && firstErr.status === 'fulfilled') {
-        const s = firstErr.value.res.status;
-        if (s === 401 || s === 429) {
-          return NextResponse.json({ error: s === 401 ? 'API key rejected' : 'Rate limited' }, { status: s });
-        }
-        return NextResponse.json({ error: `API error ${s}` }, { status: s });
-      }
-      return NextResponse.json({ error: 'All candidates failed' }, { status: 502 });
     }
 
     if (!nimRes || !nimRes.body) {
