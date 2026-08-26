@@ -631,7 +631,7 @@ export default function ChatInterface() {
         const toDelete = msgs.slice(editIdx).map(m => m.id);
         await supabase.from('messages').delete().in('id', toDelete);
       }
-      const messagesBefore = (msgs || []).slice(0, editIdx);
+      const messagesBefore = (msgs || []).slice(0, editIdx).slice(-30);
       const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
       allMessages = [...messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
       await addMessage(chatId, 'user', content, imageUrls);
@@ -640,11 +640,12 @@ export default function ChatInterface() {
     } else {
       const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
 
+      // Fetch last 30 messages (descending + reverse) instead of ALL messages
       const [freshRes] = await Promise.all([
-        supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true }),
+        supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(30),
         addMessage(chatId, 'user', content, imageUrls),
       ]);
-      const freshMessages = freshRes.data || [];
+      const freshMessages = (freshRes.data || []).reverse();
       allMessages = [...freshMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
       bumpMessages();
 
@@ -806,11 +807,9 @@ export default function ChatInterface() {
     abortRef.current = abort;
     setIsLoading(true);
     setError(null);
-    // Hide the old message while regenerating; the DB row stays until the new
-    // answer arrives, so on error it simply reappears (nothing is ever lost).
     setRegeneratingId(messageId);
 
-    const allMessages = messages.slice(0, msgIdx).map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
+    const allMessages = messages.slice(Math.max(0, msgIdx - 30), msgIdx).map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
 
     try {
       if (abort.signal.aborted) return;
