@@ -90,7 +90,7 @@ async function fetchUnlidModels(key: string): Promise<NimModel[] | null> {
       const inputPrice = pricing?.input_usd_per_m;
       const outputPrice = pricing?.output_usd_per_m;
       const cost = inputPrice !== undefined && outputPrice !== undefined
-        ? `$${inputPrice}/$${outputPrice} per 1M tokens`
+        ? `Input $${inputPrice} · output $${outputPrice} per 1M tokens`
         : undefined;
       return [{
         id,
