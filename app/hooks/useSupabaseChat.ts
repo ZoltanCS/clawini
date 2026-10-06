@@ -132,7 +132,9 @@ export function useSupabaseChat(user: User | null) {
 
     if (error) {
       console.error('Error adding message:', error);
+      return false;
     }
+    return true;
   };
 
   const loadMessages = async (chatId: string): Promise<Message[]> => {
@@ -153,7 +155,7 @@ export function useSupabaseChat(user: User | null) {
   const uploadImage = async (file: File, chatId: string): Promise<string | null> => {
     if (!user) return null;
 
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const fileName = `${user.id}/${chatId}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage

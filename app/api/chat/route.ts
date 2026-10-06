@@ -17,7 +17,7 @@ const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // OpenCode Zen (OpenAI-compatible endpoint)
-const OPENCODE_BASE_URL = process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1';
+const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '');
 const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
 
 const OPENCODE_MODELS = new Set([
@@ -29,7 +29,7 @@ const OPENCODE_MODELS = new Set([
 
 // Some OpenCode models use the Responses API (/responses) instead of
 // chat completions (/chat/completions). See https://opencode.ai/docs/go/
-const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5', 'gpt-5.6-luna']);
+const OPENCODE_RESPONSES_MODELS = new Set(['grok-4.5', 'grok-4.6', 'grok-4.7', 'gpt-5.6-luna']);
 
 const GEMINI_MODELS = new Set([
   'gemini-3.6-flash',
@@ -164,7 +164,7 @@ async function tavilySearch(query: string): Promise<TavilyResult[] | null> {
 export async function POST(req: NextRequest) {
   const requestStartAt = Date.now();
   try {
-    const { messages, model, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort, compactSummary } = await req.json();
+    const { messages, model, provider, systemPrompt, webSearch, thinking, temperature, maxTokens, topP, frequencyPenalty, reasoningEffort, compactSummary } = await req.json();
     const modelId = model || 'moonshotai/kimi-k2.6';
     console.log('[chat] request received', { modelId, messageCount: messages?.length, elapsedMs: Date.now() - requestStartAt });
     const isGrokModel = modelId.startsWith('grok-');
@@ -221,10 +221,6 @@ export async function POST(req: NextRequest) {
       const recentMsgs = formattedMessages.slice(-(MAX_MESSAGES_FOR_API));
       formattedMessages.length = 0;
       formattedMessages.push(systemMsg, ...recentMsgs);
-    }
-
-    if (!NIM_API_KEY) {
-      return NextResponse.json({ error: 'API key not configured (set NVIDIA_NIM_API_KEY)' }, { status: 500 });
     }
 
     const chatMessages = formattedMessages;
@@ -407,7 +403,7 @@ export async function POST(req: NextRequest) {
     }
 
     // --- GOOGLE GEMINI: OpenAI-compatible chat/completions ---
-    if (isGeminiModel(modelId)) {
+    if (provider !== 'opencode' && isGeminiModel(modelId)) {
       if (!GEMINI_API_KEY) {
         return NextResponse.json({ error: 'API key not configured (set GEMINI_API_KEY)' }, { status: 500 });
       }
@@ -477,7 +473,7 @@ export async function POST(req: NextRequest) {
     }
 
     // --- OPENCODE ZEN / GO: OpenAI-compatible chat/completions ---
-    if (isOpenCodeModel(modelId)) {
+    if (provider === 'opencode' || isOpenCodeModel(modelId)) {
       if (!OPENCODE_API_KEY) {
         return NextResponse.json({ error: 'API key not configured (set OPENCODE_API_KEY)' }, { status: 500 });
       }
@@ -494,7 +490,7 @@ export async function POST(req: NextRequest) {
 
       // Grok models are hosted behind the Responses API (/responses) instead
       // of chat completions (/chat/completions).
-      const useResponsesApi = OPENCODE_RESPONSES_MODELS.has(modelId);
+      const useResponsesApi = OPENCODE_RESPONSES_MODELS.has(modelId) || modelId.startsWith('gpt-') || modelId.startsWith('grok-') || modelId.startsWith('muse-spark');
 
       let opencodeRes: Response;
       if (useResponsesApi) {
@@ -657,6 +653,10 @@ export async function POST(req: NextRequest) {
     }
 
     // --- OPEN-WEIGHT MODELS: NVIDIA NIM chat/completions ---
+    if (!NIM_API_KEY) {
+      return NextResponse.json({ error: 'Hiányzik a NVIDIA_NIM_API_KEY környezeti változó ehhez a modellhez.' }, { status: 503 });
+    }
+
     const candidates = [modelId, ...getFallbackModels(modelId).filter(m => m !== modelId)];
     let nimRes: Response | null = null;
     let usedModel = modelId;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clawini-v2';
+const CACHE_NAME = 'clawini-v3';
 const PRECACHE = [
   '/',
   '/manifest.json',

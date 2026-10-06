@@ -1,6 +1,6 @@
-# Gemini Chat
+# Clawini Chat
 
-Egy egyszerű, intuitív, mobilra optimalizált chatbot a Gemini Flash Lite modellel, OpenRouter API-n keresztül. **Most már valós adatbázissal és autentikációval!**
+Mobilra optimalizált chatbot Supabase hitelesítéssel és beszélgetés-előzményekkel. Több modell szolgáltatót támogat: NVIDIA NIM, Google Gemini, AWS Bedrock és OpenCode Zen.
 
 ## ✨ Új Funkciók
 
@@ -31,8 +31,9 @@ Egy egyszerű, intuitív, mobilra optimalizált chatbot a Gemini Flash Lite mode
 
 2. **A Vercel bekéri ezeket az adatokat:**
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`  
-   - `OPENROUTER_API_KEY`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_KEY`
+   - a használni kívánt modellek szolgáltatóihoz tartozó kulcsok (például `NVIDIA_NIM_API_KEY`)
 
    Lásd: [SETUP.md](./SETUP.md)
 
@@ -43,10 +44,9 @@ Egy egyszerű, intuitív, mobilra optimalizált chatbot a Gemini Flash Lite mode
 - Hozz létre egy új projektet
 - Futtasd le a `supabase/schema.sql` fájlt az SQL Editorban
 
-### 2. OpenRouter API Kulcs
-- Regisztrálj: https://openrouter.ai
-- Szerezz API kulcsot a https://openrouter.ai/keys oldalon
-- Ingyenes kreditek járnak regisztráció után!
+### 2. Modell szolgáltató kulcsok
+- Állítsd be a kulcsot ahhoz a szolgáltatóhoz, amelynek modelljét használod.
+- A változók listája és a szolgáltatónkénti beállítások: [SETUP.md](./SETUP.md) és [.env.example](./.env.example).
 
 ### 3. Google OAuth (opcionális)
 - Google Cloud Console: https://console.cloud.google.com
@@ -65,7 +65,10 @@ cp .env.example .env.local
 # 3. Töltsd ki a .env.local fájlt:
 # NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 # NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-# OPENROUTER_API_KEY=your-openrouter-key
+# GEMINI_API_KEY=your-gemini-api-key
+# AWS_ACCESS_KEY_ID=your-aws-access-key-id
+# AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+# OPENCODE_API_KEY=your-opencode-api-key
 
 # 4. Fejlesztői szerver indítása
 npm run dev
@@ -98,7 +101,7 @@ A `supabase/schema.sql` fájl tartalmazza:
 
 ## 📝 API Endpoints
 
-- `POST /api/chat` - Üzenet küldés az OpenRouter-nek
+- `POST /api/chat` - Üzenet küldése a kiválasztott modell szolgáltatójának
 - `GET /auth/callback` - OAuth callback kezelés
 
 ## 🛠️ Technológiák
@@ -108,7 +111,7 @@ A `supabase/schema.sql` fájl tartalmazza:
 - **Database:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth (Email + OAuth)
 - **Storage:** Supabase Storage
-- **AI:** OpenRouter API (Google Gemini Flash Lite)
+- **AI:** NVIDIA NIM, Google Gemini, AWS Bedrock és OpenCode Zen
 - **Deploy:** Vercel
 
 ## 📱 Reszponzív
@@ -122,7 +125,7 @@ A `supabase/schema.sql` fájl tartalmazza:
 Ha bármi probléma adódik:
 1. Ellenőrizd a környezeti változókat
 2. Nézd meg a Supabase Logs-ot
-3. Ellenőrizd az OpenRouter API kulcsot
+3. Ellenőrizd, hogy a kiválasztott modell szolgáltatójának API-kulcsa be van állítva
 
 ## 📄 Licence
 

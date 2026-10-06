@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import ServiceWorkerRegistration from '@/app/components/ServiceWorkerRegistration';
 
 export const metadata: Metadata = {
   title: 'Clawini',
@@ -18,8 +19,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   themeColor: '#000000',
 };
@@ -36,7 +35,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased overscroll-none touch-manipulation">
         {children}
-        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

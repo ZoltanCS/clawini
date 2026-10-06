@@ -2,11 +2,11 @@
 
 ## Quick Deploy
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/gemini-chat&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,OPENROUTER_API_KEY)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ZoltanCS/clawini&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_KEY,NVIDIA_NIM_API_KEY)
 
 ## Environment Variables
 
-A Vercel deploy során automatikusan kéri a következő környezeti változókat:
+A Vercel deploy során add meg a Supabase változókat, valamint azoknak a modell szolgáltatóknak a kulcsait, amelyeket használni szeretnél:
 
 ### 1. `NEXT_PUBLIC_SUPABASE_URL`
 - **Honnan szerezd:** Supabase Dashboard → Settings → API → Project URL
@@ -16,9 +16,13 @@ A Vercel deploy során automatikusan kéri a következő környezeti változóka
 - **Honnan szerezd:** Supabase Dashboard → Settings → API → Project API keys → `anon/public`
 - **Formátum:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
 
-### 3. `OPENROUTER_API_KEY`
-- **Honnan szerezd:** https://openrouter.ai/keys
-- **Ingyenes kreditek:** Regisztráció után kapsz ingyen krediteket
+### Modell szolgáltatók (választható, modellenként eltérő)
+- NVIDIA NIM: `NVIDIA_NIM_API_KEY`
+- Google Gemini: `GEMINI_API_KEY`
+- OpenCode Zen: `OPENCODE_API_KEY`
+- AWS Bedrock Claude/Nova: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, opcionálisan `AWS_SESSION_TOKEN`
+
+Csak a kiválasztott modellhez tartozó szolgáltató kulcsa szükséges. A helyi `.env.example` fájl tartalmazza a változók sablonját.
 
 ## Supabase Beállítás
 

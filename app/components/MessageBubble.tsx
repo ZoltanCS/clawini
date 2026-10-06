@@ -424,7 +424,12 @@ const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
     prev.message.id === next.message.id &&
     prev.message.content === next.message.content &&
     prev.message.image_url === next.message.image_url &&
-    prev.highlighted === next.highlighted
+    prev.highlighted === next.highlighted &&
+    prev.modelLabel === next.modelLabel &&
+    prev.onRegenerate === next.onRegenerate &&
+    prev.onBranch === next.onBranch &&
+    prev.onEdit === next.onEdit &&
+    prev.onDelete === next.onDelete
   );
 });
 

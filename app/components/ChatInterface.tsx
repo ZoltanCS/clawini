@@ -13,7 +13,7 @@ import {
   isOverGCThreshold,
   isOverCompactThreshold,
 } from '@/app/lib/tokens';
-import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, GEMINI_CATALOG, OPENCODE_CATALOG, getModelById } from '@/app/lib/nim-models';
+import { NimModel, DEFAULT_NIM_MODEL_ID, DEFAULT_GC_MODEL_ID, OPENCODE_CATALOG, getModelById } from '@/app/lib/nim-models';
 import Sidebar from '@/app/components/Sidebar';
 import ChatInput from '@/app/components/ChatInput';
 import MessageList from '@/app/components/MessageList';
@@ -22,7 +22,7 @@ import AuthModal from '@/app/components/AuthModal';
 import SettingsModal from '@/app/components/SettingsModal';
 
 const MODELS_CACHE_KEY = 'nimModelsCache';
-const MODELS_CACHE_AGE = 1000 * 60 * 30;
+const MODELS_CACHE_AGE = 1000 * 60 * 5;
 const SELECTED_MODEL_KEY = 'selectedModel';
 const THEME_KEY = 'theme';
 const DEV_MODE_KEY = 'devMode';
@@ -69,17 +69,6 @@ const MESSAGE_LENGTH_OPTIONS = [
   { label: 'Nincs megadva', instruction: '' },
 ] as const;
 
-const MODEL_SHEET_OPTIONS = [
-  { tier: 'normal', label: 'Normál', id: 'minimaxai/minimax-m3' },
-  { tier: 'smart',  label: 'Okos',   id: 'z-ai/glm5' },
-] as const;
-
-const DEV_MODEL_OPTIONS = [
-  { label: 'Mistral Medium 3.5',  id: 'mistralai/mistral-medium-3.5-128b' },
-  { label: 'Inkling',             id: 'thinkingmachines/inkling' },
-  { label: 'Nemotron 3 Ultra',    id: 'nvidia/nemotron-3-ultra-550b-a55b' },
-] as const;
-
 const OPENCODE_MODEL_IDS = new Set(OPENCODE_CATALOG.map(m => m.id));
 
 export function exportChatAsMarkdown(messages: Message[], title: string): string {
@@ -101,6 +90,7 @@ export default function ChatInterface() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
+  const [persistentMemories, setPersistentMemories] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [tokenCount, setTokenCount] = useState<number>(0);
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
@@ -219,9 +209,7 @@ export default function ChatInterface() {
       try {
         const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
         if (Array.isArray(cachedModels)) {
-          const geminiIds = new Set(GEMINI_CATALOG.map(g => g.id));
-          const cleaned = cachedModels.filter((m: any) => !(m.id && m.id.startsWith('gemini-') && !geminiIds.has(m.id)));
-          setModels(cleaned);
+          setModels(cachedModels);
         }
       } catch {}
     };
@@ -278,17 +266,14 @@ export default function ChatInterface() {
       try {
         const { models: cachedModels, timestamp } = JSON.parse(cached2);
         if (Date.now() - timestamp < MODELS_CACHE_AGE) {
-          const geminiIds = new Set(GEMINI_CATALOG.map(g => g.id));
-          const cleaned = Array.isArray(cachedModels) ? cachedModels.filter((m: any) => !(m.id && m.id.startsWith('gemini-') && !geminiIds.has(m.id))) : cachedModels;
-          setModels(cleaned);
+          if (Array.isArray(cachedModels)) setModels(cachedModels);
           setIsModelsLoading(false);
-          return;
         }
       } catch {}
     }
 
-    fetch('/api/models').then(r => r.json()).then(data => {
-      const m = data.models || []; setModels(m);
+    fetch('/api/models', { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('Modell lista betöltése sikertelen'); return r.json(); }).then(data => {
+      const m = Array.isArray(data.models) ? data.models : []; setModels(m);
       localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ models: m, timestamp: Date.now() }));
       setIsModelsLoading(false);
     }).catch(() => setIsModelsLoading(false));
@@ -296,6 +281,20 @@ export default function ChatInterface() {
 
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const { chats, currentChat, currentChatId, setCurrentChatId, createNewChat, deleteChat, updateChatTitle, addMessage, uploadImage } = useSupabaseChat(user);
+
+  useEffect(() => {
+    let active = true;
+    const loadMemories = async () => {
+      if (!user) { setPersistentMemories([]); memoryThrottleRef.current = 0; return; }
+      memoryThrottleRef.current = Number(localStorage.getItem(`memoryCount:${user.id}`) || 0);
+      const { data } = await supabase.from('memories').select('content').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30);
+      if (active) setPersistentMemories((data || []).map(row => row.content));
+    };
+    const refreshMemories = () => { void loadMemories(); };
+    void loadMemories();
+    window.addEventListener('memories-updated', refreshMemories);
+    return () => { active = false; window.removeEventListener('memories-updated', refreshMemories); };
+  }, [user?.id]);
 
   // Refs so stable callbacks can read the latest values without retriggering effects
   const selectedModelIdRef = useRef(selectedModelId);
@@ -320,36 +319,20 @@ export default function ChatInterface() {
   const dropdownGroups = useMemo(() => {
     const main: { id: string; label: string; tier?: string }[] = [];
     const dev: { id: string; label: string }[] = [];
-    const google: { id: string; label: string; tier?: string }[] = GEMINI_CATALOG.map(m => ({ id: m.id, label: m.label, tier: m.tier }));
-    const opencode: { id: string; label: string; tier?: string }[] = OPENCODE_CATALOG.map(m => ({ id: m.id, label: m.label, tier: m.tier }));
-    if (models.length === 0) {
-      main.push(...MODEL_SHEET_OPTIONS);
-      if (devMode) dev.push(...DEV_MODEL_OPTIONS);
-    } else {
-      const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
-      main.push(
-        ...models
-          .filter((m: any) => m.tier && !String(m.id).startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)) // Gemini + OpenCode models live in their own tabs
-          .sort((a: any, b: any) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9))
-          .map((m: any) => ({ id: m.id, label: m.label || m.id, tier: m.tier as string })),
-      );
-      if (devMode) dev.push(...models.filter((m: any) => !m.tier && !String(m.id).startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)).map((m: any) => ({ id: m.id, label: m.label || m.id })));
-      for (const opt of MODEL_SHEET_OPTIONS) if (!main.some(m => m.id === opt.id)) main.push(opt);
-      if (devMode) for (const opt of DEV_MODEL_OPTIONS) if (!dev.some(m => m.id === opt.id)) dev.push(opt);
-    }
+    const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
+    const toOption = (m: NimModel) => ({ id: m.id, label: m.label || m.id, tier: m.tier });
+    const google = models.filter(m => m.provider === 'google' || m.id.startsWith('gemini-')).map(toOption);
+    const opencode = models.filter(m => m.provider === 'opencode' || OPENCODE_MODEL_IDS.has(m.id)).map(toOption);
+    const nvidia = models.filter(m => m.provider === 'nvidia' || (!m.provider && !m.id.startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)));
+    main.push(...nvidia.sort((a, b) => (tierOrder[a.tier || ''] ?? 9) - (tierOrder[b.tier || ''] ?? 9)).map(toOption));
     return { main, dev, google, opencode };
-  }, [models, devMode]);
+  }, [models]);
 
   useEffect(() => {
-    const knownIds: Set<string> = new Set([
-      ...MODEL_SHEET_OPTIONS,
-      ...DEV_MODEL_OPTIONS,
-      ...GEMINI_CATALOG.map(g => g.id),
-      ...OPENCODE_CATALOG.map(o => o.id),
-    ].map(o => typeof o === 'string' ? o : o.id));
-    if (selectedModelId && models.length > 0 && !models.find(m => m.id === selectedModelId) && !knownIds.has(selectedModelId)) {
-      setSelectedModelId(DEFAULT_NIM_MODEL_ID);
-      localStorage.setItem(SELECTED_MODEL_KEY, DEFAULT_NIM_MODEL_ID);
+    if (selectedModelId && models.length > 0 && !models.some(m => m.id === selectedModelId)) {
+      const fallback = models.find(m => m.provider === 'nvidia') || models[0];
+      setSelectedModelId(fallback.id);
+      localStorage.setItem(SELECTED_MODEL_KEY, fallback.id);
     }
   }, [models, selectedModelId]);
 
@@ -407,7 +390,8 @@ export default function ChatInterface() {
   const getSystemPrompt = () => {
     const base = localStorage.getItem('systemPrompt') || '';
     const instruction = MESSAGE_LENGTH_OPTIONS[messageLengthIndexRef.current]?.instruction || '';
-    return instruction ? `${base}\n\n## VÁLASZ HOSSZA\n${instruction}`.trim() : base;
+    const memory = persistentMemories.length ? `## Amit érdemes megjegyezned a felhasználóról\n${persistentMemories.map(item => `- ${item}`).join('\n')}` : '';
+    return [base, instruction ? `## VÁLASZ HOSSZA\n${instruction}` : '', memory].filter(Boolean).join('\n\n').trim();
   };
 
   const loadChatCompactInfo = useCallback(async (chatId: string) => {
@@ -416,39 +400,50 @@ export default function ChatInterface() {
       .select('compact_summary, compacted_count')
       .eq('id', chatId)
       .single();
+    if (currentChatIdRef.current !== chatId) return;
     setCompactSummary((data?.compact_summary as string) || null);
     setCompactedCount(data?.compacted_count || 0);
   }, []);
 
-  const fireCompact = useCallback(async (chatId: string, messages: { role: string; content: string; image_url?: string | null }[]) => {
-    if (compactingRef.current || !chatId || messages.length === 0) return;
+  const fireCompact = useCallback(async (
+    chatId: string,
+    messages: { role: string; content: string; image_url?: string | null }[],
+    compactedThrough: number,
+    previousSummary: string | null
+  ): Promise<string | null> => {
+    if (compactingRef.current || !chatId || messages.length === 0) return null;
     compactingRef.current = true;
     try {
-      const toCompact = messages.slice(0, Math.max(0, messages.length - COMPACT_KEEP_RECENT));
-      if (toCompact.length === 0) return;
+      const toCompact = messages;
+      if (toCompact.length === 0) return previousSummary;
 
       const res = await fetch('/api/chat/compact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: toCompact }),
+        body: JSON.stringify({ messages: toCompact, previousSummary, provider: currentModel?.provider }),
       });
-      if (!res.ok) return;
+      if (!res.ok) return null;
       const data = await res.json();
-      if (!data.summary) return;
+      if (!data.summary) return null;
 
-      await supabase.from('chats').update({
+      const { error: updateError } = await supabase.from('chats').update({
         compact_summary: data.summary,
-        compacted_count: data.compactedCount || toCompact.length,
+        compacted_count: compactedThrough,
       }).eq('id', chatId);
+      if (updateError) return null;
 
-      setCompactSummary(data.summary);
-      setCompactedCount(data.compactedCount || toCompact.length);
+      if (currentChatIdRef.current === chatId) {
+        setCompactSummary(data.summary);
+        setCompactedCount(compactedThrough);
+      }
+      return data.summary as string;
     } catch {
       // Compact hiba nem blokkolja a chatet
+      return null;
     } finally {
       compactingRef.current = false;
     }
-  }, []);
+  }, [currentModel]);
 
   const streamResponse = useCallback(async (response: Response, signal?: AbortSignal) => {
     const reader = response.body?.getReader();
@@ -516,16 +511,17 @@ export default function ChatInterface() {
         while (true) {
           if (signal?.aborted) break;
           const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
-          for (const line of lines) {
+          const processLine = (line: string) => {
             const t = line.trim();
-            if (!t || t === 'data: [DONE]') continue;
-            if (t.startsWith('data: ')) {
+            if (!t || t === 'data: [DONE]') return;
+            if (t.startsWith('data:')) {
               try {
-                const parsed = JSON.parse(t.slice(6));
+                const payload = t.slice(5).trim();
+                if (!payload || payload === '[DONE]') return;
+                const parsed = JSON.parse(payload);
                 if (parsed.usage?.completion_tokens) usageTokensRef.current = parsed.usage.completion_tokens;
                 const delta = parsed.choices?.[0]?.delta;
                 if (delta?.reasoning_content) { accumulatedThinking += delta.reasoning_content; scheduleThinkingFlush(); }
@@ -554,6 +550,11 @@ export default function ChatInterface() {
                 }
               } catch {}
             }
+          };
+          for (const line of lines) processLine(line);
+          if (done) {
+            if (buffer.trim()) processLine(buffer);
+            break;
           }
         }
       } catch {}
@@ -592,11 +593,11 @@ export default function ChatInterface() {
 
   const stopStreaming = useCallback(() => {
     if (abortRef.current) {
+      // Keep streamed content available for the send handler to save it.
       abortRef.current.abort();
       abortRef.current = null;
     }
     recordResponse(sendModelRef.current, { aborted: true });
-    setStreamingContent(''); setThinkingContent('');
     setIsLoading(false);
     setRegeneratingId(null);
   }, [recordResponse]);
@@ -611,7 +612,11 @@ export default function ChatInterface() {
     let chatId = currentChatId;
     if (!chatId) {
       const newChatId = await createNewChat();
-      if (!newChatId) return;
+      if (!newChatId) {
+        setError({ message: 'Nem sikerült új beszélgetést létrehozni. Ellenőrizd a kapcsolatot, majd próbáld újra.', timestamp: Date.now() });
+        abortRef.current = null;
+        return;
+      }
       chatId = newChatId;
     }
 
@@ -622,6 +627,7 @@ export default function ChatInterface() {
     streamStartRef.current = 0;
 
     let allMessages: { role: string; content: string; image_url?: string | null }[];
+    let conversationTotalCount = 0;
 
     if (editingMessage) {
       const { data: msgs } = await supabase
@@ -634,19 +640,37 @@ export default function ChatInterface() {
       const messagesBefore = (msgs || []).slice(0, editIdx).slice(-30);
       const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
       allMessages = [...messagesBefore.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
-      await addMessage(chatId, 'user', content, imageUrls);
+      conversationTotalCount = allMessages.length;
+      const saved = await addMessage(chatId, 'user', content, imageUrls);
+      if (!saved) {
+        setError({ message: 'Nem sikerült elmenteni az üzenetet. Ellenőrizd a kapcsolatot, majd próbáld újra.', timestamp: Date.now() });
+        setIsLoading(false);
+        abortRef.current = null;
+        return;
+      }
       setEditingMessage(null);
       bumpMessages();
     } else {
       const userMsg = { role: 'user' as const, content, image_url: imageUrls ? (imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls)) : undefined };
 
-      // Fetch last 30 messages (descending + reverse) instead of ALL messages
-      const [freshRes] = await Promise.all([
-        supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(30),
-        addMessage(chatId, 'user', content, imageUrls),
-      ]);
+      const saved = await addMessage(chatId, 'user', content, imageUrls);
+      if (!saved) {
+        setError({ message: 'Nem sikerült elmenteni az üzenetet. Ellenőrizd a kapcsolatot, majd próbáld újra.', timestamp: Date.now() });
+        setIsLoading(false);
+        abortRef.current = null;
+        return;
+      }
+      // Fetch a bounded context window and exact total count after the insert.
+      const freshRes = await supabase.from('messages').select('*', { count: 'exact' }).eq('chat_id', chatId).order('created_at', { ascending: false }).limit(30);
+      if (freshRes.error) {
+        setError({ message: freshRes.error.message, timestamp: Date.now() });
+        setIsLoading(false);
+        abortRef.current = null;
+        return;
+      }
       const freshMessages = (freshRes.data || []).reverse();
-      allMessages = [...freshMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url })), userMsg];
+      allMessages = freshMessages.map(m => ({ role: m.role, content: m.content, image_url: m.image_url }));
+      conversationTotalCount = freshRes.count || allMessages.length;
       bumpMessages();
 
       if (freshMessages.length === 0 && !hasGeneratedTitle.has(chatId)) {
@@ -658,8 +682,27 @@ export default function ChatInterface() {
     const heuristicTokens = countMessageTokensHeuristic(allMessages, selectedModelId);
     setTokenCount(heuristicTokens);
 
-    if (!compactingRef.current && isOverCompactThreshold(allMessages.length, heuristicTokens, compactSummary !== null)) {
-      fireCompact(chatId, allMessages);
+    let requestMessages = allMessages;
+    let requestSummary = compactSummary;
+    if (!compactingRef.current && isOverCompactThreshold(allMessages.length, heuristicTokens, contextWindow)) {
+      // compactedCount is an absolute message position. The DB query is bounded
+      // to the newest 30 rows, so translate that position into the local window.
+      const totalMessages = conversationTotalCount;
+      const windowStart = Math.max(0, totalMessages - allMessages.length);
+      const compactedThrough = compactedCount;
+      const firstNew = Math.max(0, compactedThrough - windowStart);
+      const lastNew = Math.max(firstNew, allMessages.length - COMPACT_KEEP_RECENT);
+      const toCompact = allMessages.slice(firstNew, lastNew);
+      const nextCompactedThrough = windowStart + lastNew;
+      if (toCompact.length > 0) {
+        const nextSummary = await fireCompact(chatId, toCompact, nextCompactedThrough, compactSummary);
+        if (nextSummary) {
+          requestSummary = nextSummary;
+          requestMessages = allMessages.slice(-COMPACT_KEEP_RECENT);
+        }
+      } else if (compactSummary && compactedCount >= totalMessages - COMPACT_KEEP_RECENT) {
+        requestMessages = allMessages.slice(-COMPACT_KEEP_RECENT);
+      }
     }
 
     try {
@@ -669,7 +712,7 @@ export default function ChatInterface() {
       firstTokenAtRef.current = null;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
+        body: JSON.stringify({ messages: requestMessages, model: selectedModelId, provider: currentModel?.provider, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: requestSummary || undefined, ...chatParams }),
         signal: abort.signal,
       });
 
@@ -697,16 +740,23 @@ export default function ChatInterface() {
 
       const finalMessages = [...allMessages, { role: 'assistant' as const, content: accumulatedContent || '' }];
       setTokenCount(countMessageTokensHeuristic(finalMessages, selectedModelId));
-      await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
+      const assistantSaved = await addMessage(chatId, 'assistant', wrapWithThinking(accumulatedContent || 'Sajnos nem kaptam választ.', thinkingContentRef.current));
+      if (!assistantSaved) throw new Error('A válasz elkészült, de nem sikerült elmenteni. Ellenőrizd a kapcsolatot.');
       bumpMessages();
 
       // Background: extract memories (throttled: every 5th message only)
       memoryThrottleRef.current++;
+      localStorage.setItem(`memoryCount:${user.id}`, String(memoryThrottleRef.current));
       if (user && accumulatedContent && memoryThrottleRef.current % 5 === 0) {
         fetch('/api/memory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: allMessages.slice(-6), userId: user.id }),
+          body: JSON.stringify({ messages: allMessages.slice(-6), userId: user.id, provider: currentModel?.provider || 'nvidia' }),
+        }).then(async response => {
+          if (!response.ok) return;
+          const result = await response.json();
+          const additions = Array.isArray(result.memories) ? result.memories as string[] : [];
+          if (additions.length) setPersistentMemories(previous => Array.from(new Set([...additions, ...previous])).slice(0, 30));
         }).catch(() => {});
       }
     } catch (error: any) {
@@ -731,7 +781,7 @@ export default function ChatInterface() {
         setRegeneratingId(null);
       }
     }
-  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode, thinking, chatParams, recordResponse, compactSummary, fireCompact, bumpMessages]);
+  }, [user, currentChatId, createNewChat, addMessage, selectedModelId, currentModel, contextWindow, generateChatTitle, hasGeneratedTitle, streamResponse, editingMessage, webSearchMode, thinking, chatParams, recordResponse, compactSummary, persistentMemories, fireCompact, bumpMessages]);
 
   const handleImageUpload = useCallback(async (file: File): Promise<string | null> => {
     if (!user) return null;
@@ -815,7 +865,7 @@ export default function ChatInterface() {
       if (abort.signal.aborted) return;
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, model: selectedModelId, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
+        body: JSON.stringify({ messages: allMessages, model: selectedModelId, provider: currentModel?.provider, systemPrompt: getSystemPrompt(), webSearch: webSearchMode, thinking, compactSummary: compactSummary || undefined, ...chatParams }),
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -857,7 +907,7 @@ export default function ChatInterface() {
       }
       setRegeneratingId(null);
     }
-  }, [currentChatId, user, addMessage, selectedModelId, streamResponse, webSearchMode, thinking, chatParams, recordResponse, compactSummary, bumpMessages]);
+  }, [currentChatId, user, addMessage, selectedModelId, currentModel, streamResponse, webSearchMode, thinking, chatParams, recordResponse, compactSummary, persistentMemories, bumpMessages]);
 
   const closeBranchToast = useCallback(() => setBranchToast(null), []);
 
@@ -1212,7 +1262,7 @@ export default function ChatInterface() {
       {isModelSheetOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
-          <div className="fixed left-3 top-14 rounded-xl shadow-lg z-50 min-w-[150px] animate-scaleIn overflow-hidden" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+          <div className="fixed left-3 top-14 w-[min(24rem,calc(100vw_-_1.5rem))] max-h-[min(70dvh,36rem)] rounded-xl shadow-lg z-50 animate-scaleIn overflow-y-auto overscroll-contain" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
             <div className="px-3 pt-3 pb-1">
               <div className="relative flex rounded-full p-1 mx-auto max-w-[280px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
                 <div
@@ -1233,6 +1283,7 @@ export default function ChatInterface() {
             </div>
             {providerTab === 'google' ? (
               <>
+                {dropdownGroups.google.length === 0 && <p className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{isModelsLoading ? 'Modellek frissítése…' : 'Nincs Google modell. Állítsd be a GEMINI_API_KEY kulcsot.'}</p>}
                 {dropdownGroups.google.map(opt => {
                   const selected = opt.id === selectedModelId;
                   return (
@@ -1254,6 +1305,7 @@ export default function ChatInterface() {
               </>
             ) : providerTab === 'opencode' ? (
               <>
+                {dropdownGroups.opencode.length === 0 && <p className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{isModelsLoading ? 'Modellek frissítése…' : 'Nincs OpenCode modell. Állítsd be az OPENCODE_API_KEY kulcsot.'}</p>}
                 {dropdownGroups.opencode.map(opt => {
                   const selected = opt.id === selectedModelId;
                   return (
@@ -1275,6 +1327,7 @@ export default function ChatInterface() {
               </>
             ) : (
               <>
+                {dropdownGroups.main.length === 0 && dropdownGroups.dev.length === 0 && <p className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{isModelsLoading ? 'Modellek frissítése…' : 'Nincs NVIDIA modell. Állítsd be a NVIDIA_NIM_API_KEY kulcsot.'}</p>}
                 {dropdownGroups.main.map(opt => {
               const selected = opt.id === selectedModelId;
               return (

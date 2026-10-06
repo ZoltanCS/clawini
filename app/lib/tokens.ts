@@ -8,7 +8,7 @@ const TOKENS_PER_IMAGE = 258;
 
 const ALL_MODELS: NimModel[] = [...NIM_FALLBACK, ...OPENCODE_CATALOG];
 
-export const COMPACT_MAX_MESSAGES = 100;
+export const COMPACT_MAX_MESSAGES = 25;
 export const COMPACT_MAX_TOKENS = 50000;
 
 export function getModelContextWindow(modelId: string): number {
@@ -95,10 +95,10 @@ export function isOverGCThreshold(tokenCount: number): boolean {
 export function isOverCompactThreshold(
   messageCount: number,
   tokenCount: number,
-  alreadyCompacted: boolean
+  contextWindow: number = DEFAULT_CONTEXT_WINDOW
 ): boolean {
-  if (alreadyCompacted) return false;
-  return messageCount > COMPACT_MAX_MESSAGES || tokenCount > COMPACT_MAX_TOKENS;
+  const safeTokenLimit = Math.min(COMPACT_MAX_TOKENS, Math.floor(contextWindow * 0.65));
+  return messageCount > 25 || tokenCount > safeTokenLimit;
 }
 
 export function getAvailableModels(): NimModel[] {

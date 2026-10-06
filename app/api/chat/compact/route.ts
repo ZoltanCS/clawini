@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
-
-const COMPACT_MODEL = 'minimaxai/minimax-m3';
+const PROVIDER_CONFIG = {
+  nvidia: { url: 'https://integrate.api.nvidia.com/v1/chat/completions', key: process.env.NVIDIA_NIM_API_KEY, model: 'minimaxai/minimax-m3' },
+  google: { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key: process.env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite' },
+  opencode: { url: `${(process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '')}/chat/completions`, key: process.env.OPENCODE_API_KEY, model: 'kimi-k2.6' },
+} as const;
 
 const COMPACT_SYSTEM_PROMPT = `## Compact System Prompt
 Készíts egy MAGYAR NYELVŰ, tömör de teljes összefoglalót az alábbi beszélgetésről.
@@ -17,15 +18,15 @@ Követelmények:
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json();
-
-    if (!NIM_API_KEY) {
-      return NextResponse.json({ error: 'NIM API key not configured' }, { status: 500 });
-    }
+    const { messages, previousSummary, provider = 'nvidia' } = await req.json();
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
     }
+
+    const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
+    if (!config) return NextResponse.json({ error: 'Unsupported model provider' }, { status: 400 });
+    if (!config.key) return NextResponse.json({ error: `Missing API key for ${provider}` }, { status: 503 });
 
     const conversationText = messages
       .map((m: any) => {
@@ -34,17 +35,18 @@ export async function POST(req: NextRequest) {
       })
       .join('\n\n');
 
-    const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+    const context = [previousSummary ? `Korábbi beszélgetés összefoglalója:\n${previousSummary}` : '', `Újabb üzenetek:\n${conversationText}`].filter(Boolean).join('\n\n');
+    const res = await fetch(config.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Authorization': `Bearer ${config.key}`,
       },
       body: JSON.stringify({
-        model: COMPACT_MODEL,
+        model: config.model,
         messages: [
           { role: 'system', content: COMPACT_SYSTEM_PROMPT },
-          { role: 'user', content: conversationText },
+          { role: 'user', content: context },
         ],
         stream: false,
         max_tokens: 1000,

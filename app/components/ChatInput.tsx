@@ -157,10 +157,17 @@ export default function ChatInput({
     if (selectedImages.length > 0 && onImageUpload) {
       setIsUploading(true);
       const urls: (string | null)[] = [];
-      for (let i = 0; i < selectedImages.length; i++) {
-        setUploadProgress(Math.round(((i + 1) / selectedImages.length) * 100));
-        const url = await onImageUpload(selectedImages[i]);
-        urls.push(url);
+      try {
+        for (let i = 0; i < selectedImages.length; i++) {
+          setUploadProgress(Math.round(((i + 1) / selectedImages.length) * 100));
+          const url = await onImageUpload(selectedImages[i]);
+          urls.push(url);
+        }
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Nem sikerült feltölteni a képet');
+        setIsUploading(false);
+        setUploadProgress(0);
+        return;
       }
       const uploadedUrls = urls.filter((url): url is string => url !== null);
       if (uploadedUrls.length === 0 && allImageUrls.length === 0) {

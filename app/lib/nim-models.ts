@@ -7,6 +7,7 @@ export interface NimModel {
   supportsThinking: boolean;
   description?: string;
   tier?: 'normal' | 'smart' | 'ultra';
+  provider?: 'nvidia' | 'google' | 'opencode';
 }
 
 const NIM_CATALOG: NimModel[] = [
@@ -15,27 +16,32 @@ const NIM_CATALOG: NimModel[] = [
   { id: 'moonshotai/kimi-k2.6',            label: 'Kimi K2.6',       publisher: 'Moonshot',    contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Kiegyensúlyozott, gyors' },
 ];
 
-const DEV_CATALOG: NimModel[] = [
-  { id: 'mistralai/mistral-medium-3.5-128b',  label: 'Mistral Medium 3.5',  publisher: 'Mistral',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
-  { id: 'thinkingmachines/inkling',           label: 'Inkling',             publisher: 'Thinking Machines', contextWindow: 131072, supportsVision: false, supportsThinking: true },
-  { id: 'nvidia/nemotron-3-ultra-550b-a55b',  label: 'Nemotron 3 Ultra',    publisher: 'NVIDIA',   contextWindow: 131072, supportsVision: false, supportsThinking: true },
-];
-
 export const GEMINI_CATALOG: NimModel[] = [
-  { id: 'gemini-3.6-flash',        label: 'Gemini 3.6 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Legújabb ingyenes Gemini Flash' },
-  { id: 'gemini-3-flash-preview',  label: 'Gemini 3 Flash (prev)', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'Ingyenes, frontier-class Google' },
-  { id: 'gemini-3.1-flash-lite',   label: 'Gemini 3.1 Flash-Lite', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, gyors, olcsó' },
-  { id: 'gemini-3.5-flash',        label: 'Gemini 3.5 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Ingyenes, frontier-class Google' },
+  { id: 'gemini-3.8-flash',        label: 'Gemini 3.8 Flash',      publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'Gyors, multimodális' },
+  { id: 'gemini-3.5-flash-lite',   label: 'Gemini 3.5 Flash-Lite', publisher: 'Google', contextWindow: 1048576, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'Gyors, takarékos' },
 ];
 
 export const OPENCODE_CATALOG: NimModel[] = [
-  { id: 'gpt-5.6-luna',  label: 'GPT-5.6 Luna', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'OpenCode Zen' },
-  { id: 'grok-4.5',      label: 'Grok 4.5',     publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra', description: 'OpenCode Zen' },
-  { id: 'qwen3.7-plus',  label: 'Qwen3.7 Plus', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'smart', description: 'OpenCode Zen' },
-  { id: 'kimi-k2.6',     label: 'Kimi K2.6',    publisher: 'OpenCode', contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal', description: 'OpenCode Zen' },
+  { id: 'gpt-5.6-luna', label: 'GPT 5.6 Luna', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra' },
+  { id: 'grok-4.7', label: 'Grok 4.7', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra' },
+  { id: 'grok-4.6', label: 'Grok 4.6', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra' },
+  { id: 'grok-4.5', label: 'Grok 4.5', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'ultra' },
+  { id: 'glm-5.3', label: 'GLM 5.3', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart' },
+  { id: 'glm-5.3-flash', label: 'GLM 5.3 Flash', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'normal' },
+  { id: 'glm-5.2', label: 'GLM 5.2', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'smart' },
+  { id: 'kimi-k3', label: 'Kimi K3', publisher: 'OpenCode', contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'ultra' },
+  { id: 'kimi-k2.7-code', label: 'Kimi K2.7 Code', publisher: 'OpenCode', contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'smart' },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6', publisher: 'OpenCode', contextWindow: 262143, supportsVision: true, supportsThinking: true, tier: 'normal' },
+  { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'normal' },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'ultra' },
+  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true, tier: 'normal' },
+  { id: 'deepseek-v4-flash-vision-exp', label: 'DeepSeek V4 Flash Vision', publisher: 'OpenCode', contextWindow: 131072, supportsVision: true, supportsThinking: true, tier: 'smart' },
+  { id: 'longcat-2.0', label: 'LongCat 2.0', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
+  { id: 'hy4-preview', label: 'Hy4 Preview', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
+  { id: 'hy3', label: 'Hy3', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
 ];
 
-export const NIM_FALLBACK = [...NIM_CATALOG, ...DEV_CATALOG];
+export const NIM_FALLBACK = NIM_CATALOG;
 
 export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null> {
   try {
@@ -68,13 +74,21 @@ export async function fetchNimModels(apiKey: string): Promise<NimModel[] | null>
         continue;
 
       const known = NIM_CATALOG.find(f => f.id === id);
-      apiModels.push(known || {
+      const apiContextWindow = m.context_length || m.context_window || m.inputTokenLimit;
+      const apiSupportsVision = m.modalities?.input?.includes('image');
+      apiModels.push(known ? {
+        ...known,
+        contextWindow: apiContextWindow || known.contextWindow,
+        supportsVision: apiSupportsVision ?? known.supportsVision,
+        provider: 'nvidia',
+      } : {
         id,
         label: id.includes('/') ? id.split('/').pop() || id : id,
         publisher: id.includes('/') ? id.split('/')[0] : 'Egyéb',
-        contextWindow: 131072,
-        supportsVision: id.toLowerCase().includes('vision') || id.toLowerCase().includes('vl'),
+        contextWindow: apiContextWindow || 131072,
+        supportsVision: apiSupportsVision ?? (id.toLowerCase().includes('vision') || id.toLowerCase().includes('vl')),
         supportsThinking: true,
+        provider: 'nvidia',
       });
     }
     return apiModels.length > 0 ? apiModels : null;

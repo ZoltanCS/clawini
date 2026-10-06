@@ -3,9 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-// Use the same NIM endpoint as chat so no extra API key is needed
-const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const MEMORY_MODEL = 'moonshotai/kimi-k2.6';
+const MEMORY_PROVIDERS = {
+  nvidia: { url: 'https://integrate.api.nvidia.com/v1/chat/completions', key: process.env.NVIDIA_NIM_API_KEY, model: 'moonshotai/kimi-k2.6' },
+  google: { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key: process.env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite' },
+  opencode: { url: `${(process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '')}/chat/completions`, key: process.env.OPENCODE_API_KEY, model: 'kimi-k2.6' },
+} as const;
 
 const EXTRACT_PROMPT = `A felhasználó és AI közötti beszélgetésből azonosítsd a fontos tényeket, preferenciákat, érdeklődési köröket amiket érdemes megjegyezni a felhasználóról.
 
@@ -23,23 +25,23 @@ Van egy kutyája, Morzsa`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, userId } = await req.json();
+    const { messages, userId, provider = 'nvidia' } = await req.json();
     if (!userId || !messages || messages.length < 2) {
       return NextResponse.json({ ok: true, memories: [] });
     }
 
-    const apiKey = process.env.NVIDIA_NIM_API_KEY;
-    if (!apiKey) return NextResponse.json({ ok: true, memories: [] });
+    const config = MEMORY_PROVIDERS[provider as keyof typeof MEMORY_PROVIDERS];
+    if (!config?.key) return NextResponse.json({ ok: true, memories: [] });
 
     // Format last few messages for extraction
     const recent = messages.slice(-6);
     const convo = recent.map((m: any) => `[${m.role}]: ${(m.content || '').slice(0, 300)}`).join('\n');
 
-    const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+    const res = await fetch(config.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key}` },
       body: JSON.stringify({
-        model: MEMORY_MODEL,
+        model: config.model,
         messages: [
           { role: 'system', content: EXTRACT_PROMPT },
           { role: 'user', content: convo },

@@ -44,6 +44,7 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
   const [showTokenUsage, setShowTokenUsage] = useState(false);
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json' | 'clipboard'>('markdown');
   const [memories, setMemories] = useState<{id: string; content: string}[]>([]);
+  const [newMemory, setNewMemory] = useState('');
   const [quickTopics, setQuickTopics] = useState<{id: string; topic: string}[]>([]);
   const [newTopic, setNewTopic] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -161,6 +162,17 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
   const handleDeleteMemory = async (id: string) => {
     await supabase.from('memories').delete().eq('id', id);
     setMemories(prev => prev.filter(m => m.id !== id));
+    window.dispatchEvent(new Event('memories-updated'));
+  };
+
+  const handleAddMemory = async () => {
+    const content = newMemory.trim();
+    if (!content || !user) return;
+    const { data, error } = await supabase.from('memories').insert({ user_id: user.id, content, source: 'manual' }).select('id, content').single();
+    if (error) { alert(`Nem sikerült elmenteni a memóriát: ${error.message}`); return; }
+    if (data) setMemories(previous => [data, ...previous]);
+    setNewMemory('');
+    window.dispatchEvent(new Event('memories-updated'));
   };
 
   const handleDeleteTopic = async (id: string) => {
@@ -276,7 +288,7 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-      <div className="rounded-3xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+      <div className="rounded-3xl shadow-xl w-full max-w-lg max-h-[calc(100dvh_-_2rem)] sm:max-h-[85vh] flex flex-col glass-elevated glass-border-gradient" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="flex justify-between items-center p-5" style={{ borderBottom: '1px solid var(--border)' }}>
           <h2 className="text-xl font-semibold" style={{ color: 'var(--fg)' }}>Beállítások</h2>
           <button onClick={onClose} className="p-2 rounded-full touch-active" style={{ color: 'var(--fg-muted)' }}>
@@ -505,7 +517,11 @@ export default function SettingsModal({ isOpen, onClose, user, devMode, response
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--fg-secondary)' }}>Memóriák (automatikus)</label>
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--fg-secondary)' }}>Tartós emlékek</label>
+                  <div className="flex gap-2 mb-3">
+                    <input value={newMemory} onChange={e => setNewMemory(e.target.value)} placeholder="Mit jegyezzen meg rólad?" className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm outline-none" style={{ background: 'var(--input-bg)', color: 'var(--fg)', border: '1px solid var(--border-subtle)' }} onKeyDown={e => { if (e.key === 'Enter') void handleAddMemory(); }} />
+                    <button onClick={() => void handleAddMemory()} className="px-3 py-2 rounded-xl text-sm font-medium" style={{ background: 'var(--accent-glass)', color: 'var(--accent)' }}>Mentés</button>
+                  </div>
                   {memories.length === 0 ? (
                     <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Még nincsenek memóriák. Chatelj, és automatikusan megjegyzi a fontos dolgokat.</p>
                   ) : (

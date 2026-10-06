@@ -106,10 +106,27 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
   const isNearBottom = useRef(true);
   const openedChatScrolledRef = useRef<string | null>(null);
 
-  const handleRegenerate = useCallback((id: string) => onRegenerate?.(id), [onRegenerate]);
-  const handleBranch = useCallback((id: string) => onBranch?.(id), [onBranch]);
-  const handleEdit = useCallback((id: string) => onEdit?.(id), [onEdit]);
-  const handleDelete = useCallback((id: string) => onDelete?.(id), [onDelete]);
+  const callbacksRef = useRef({ onRegenerate, onBranch, onEdit, onDelete });
+  callbacksRef.current = { onRegenerate, onBranch, onEdit, onDelete };
+  const messageHandlersRef = useRef(new Map<string, {
+    onRegenerate: () => void;
+    onBranch: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+  }>());
+  const getMessageHandlers = useCallback((id: string) => {
+    let handlers = messageHandlersRef.current.get(id);
+    if (!handlers) {
+      handlers = {
+        onRegenerate: () => callbacksRef.current.onRegenerate?.(id),
+        onBranch: () => callbacksRef.current.onBranch?.(id),
+        onEdit: () => callbacksRef.current.onEdit?.(id),
+        onDelete: () => callbacksRef.current.onDelete?.(id),
+      };
+      messageHandlersRef.current.set(id, handlers);
+    }
+    return handlers;
+  }, []);
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
@@ -138,6 +155,7 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
 
     setIsLoadingMessages(true);
     prevChatId.current = chatId;
+    let active = true;
 
     const loadMessages = async () => {
       const { data, error } = await supabase
@@ -146,11 +164,11 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
         .eq('chat_id', chatId)
         .order('created_at', { ascending: true });
 
-      if (!error && data) {
+      if (active && !error && data) {
         setMessages(data);
         if (onMessagesLoaded) onMessagesLoaded(data);
       }
-      setIsLoadingMessages(false);
+      if (active) setIsLoadingMessages(false);
     };
 
     loadMessages();
@@ -175,21 +193,20 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
       .subscribe();
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
     // onMessagesLoaded intentionally not in deps: it should not trigger refetches
   }, [chatId, refreshKey]);
 
-  useEffect(() => {
-    prevMessageCount.current = messages.length;
-  }, [messages]);
-
   const prevStreamingRef = useRef<string | undefined>(streamingContent);
 
   useEffect(() => {
+    const hasNewMessages = messages.length !== prevMessageCount.current;
+    prevMessageCount.current = messages.length;
     if (!isNearBottom.current) return;
     // On new messages, scroll immediately
-    if (messages.length !== prevMessageCount.current) {
+    if (hasNewMessages) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       return;
     }
@@ -198,7 +215,8 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
     prevStreamingRef.current = streamingContent;
     const el = bottomRef.current;
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      // Streaming scrolls should not animate every chunk; stacked smooth scrolls jitter on mobile.
+      el.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
   }, [messages, streamingContent, thinkingContent]);
 
@@ -223,12 +241,9 @@ export default function MessageList({ chatId, isLoading, refreshKey = 0, onMessa
       <div className="w-full max-w-3xl mx-auto">
         {visibleMessages.map((message) => (
           <div key={message.id} className="message-item animate-messageSlideIn">
-            <MessageBubble 
+            <MessageBubble
               message={message}
-              onRegenerate={() => handleRegenerate(message.id)}
-              onBranch={() => handleBranch(message.id)}
-              onEdit={() => handleEdit(message.id)}
-              onDelete={() => handleDelete(message.id)}
+              {...getMessageHandlers(message.id)}
               modelLabel={modelLabel}
             />
           </div>
