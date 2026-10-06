@@ -4,6 +4,7 @@ const PROVIDER_CONFIG = {
   nvidia: { url: 'https://integrate.api.nvidia.com/v1/chat/completions', key: process.env.NVIDIA_NIM_API_KEY, model: 'minimaxai/minimax-m3' },
   google: { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key: process.env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite' },
   opencode: { url: `${(process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '')}/chat/completions`, key: process.env.OPENCODE_API_KEY, model: 'kimi-k2.6' },
+  unlid: { url: 'https://api.unlid.ai/v1/chat/completions', key: process.env.UNLID_API_KEY, model: 'glm-5.3-flash-uncensored' },
 } as const;
 
 const COMPACT_SYSTEM_PROMPT = `## Compact System Prompt

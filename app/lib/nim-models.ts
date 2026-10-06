@@ -7,7 +7,10 @@ export interface NimModel {
   supportsThinking: boolean;
   description?: string;
   tier?: 'normal' | 'smart' | 'ultra';
-  provider?: 'nvidia' | 'google' | 'opencode';
+  provider?: 'nvidia' | 'google' | 'opencode' | 'unlid';
+  uncensored?: boolean;
+  inputPriceUsdPerMillion?: number;
+  outputPriceUsdPerMillion?: number;
 }
 
 const NIM_CATALOG: NimModel[] = [

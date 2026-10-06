@@ -96,7 +96,7 @@ export default function ChatInterface() {
   const [hasGeneratedTitle, setHasGeneratedTitle] = useState<Set<string>>(new Set());
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_NIM_MODEL_ID);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
-  const [providerTab, setProviderTab] = useState<'nvidia' | 'google' | 'opencode'>('nvidia');
+  const [providerTab, setProviderTab] = useState<'nvidia' | 'google' | 'opencode' | 'unlid'>('nvidia');
   const [error, setError] = useState<ChatError | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [models, setModels] = useState<NimModel[]>([]);
@@ -320,12 +320,13 @@ export default function ChatInterface() {
     const main: { id: string; label: string; tier?: string }[] = [];
     const dev: { id: string; label: string }[] = [];
     const tierOrder: Record<string, number> = { normal: 0, smart: 1, ultra: 2 };
-    const toOption = (m: NimModel) => ({ id: m.id, label: m.label || m.id, tier: m.tier });
+    const toOption = (m: NimModel) => ({ id: m.id, label: m.label || m.id, tier: m.tier, description: m.description });
     const google = models.filter(m => m.provider === 'google' || m.id.startsWith('gemini-')).map(toOption);
     const opencode = models.filter(m => m.provider === 'opencode' || OPENCODE_MODEL_IDS.has(m.id)).map(toOption);
+    const unlid = models.filter(m => m.provider === 'unlid').map(toOption);
     const nvidia = models.filter(m => m.provider === 'nvidia' || (!m.provider && !m.id.startsWith('gemini-') && !OPENCODE_MODEL_IDS.has(m.id)));
     main.push(...nvidia.sort((a, b) => (tierOrder[a.tier || ''] ?? 9) - (tierOrder[b.tier || ''] ?? 9)).map(toOption));
-    return { main, dev, google, opencode };
+    return { main, dev, google, opencode, unlid };
   }, [models]);
 
   useEffect(() => {
@@ -1266,17 +1267,17 @@ export default function ChatInterface() {
             <div className="px-3 pt-3 pb-1">
               <div className="relative flex rounded-full p-1 mx-auto max-w-[280px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
                 <div
-                  className="absolute top-1 bottom-1 w-[calc(33.333%-4px)] rounded-full transition-transform duration-200"
-                  style={{ background: 'var(--accent-glass)', left: providerTab === 'nvidia' ? '4px' : providerTab === 'google' ? 'calc(33.333% + 0px)' : 'calc(66.666% + 0px)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                  className="absolute top-1 bottom-1 w-1/4 rounded-full transition-transform duration-200"
+                  style={{ background: 'var(--accent-glass)', left: '4px', transform: `translateX(${(['nvidia', 'google', 'opencode', 'unlid'].indexOf(providerTab)) * 100}%)`, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
                 />
-                {(['nvidia', 'google', 'opencode'] as const).map(p => (
+                {(['nvidia', 'google', 'opencode', 'unlid'] as const).map(p => (
                   <button
                     key={p}
                     onClick={() => setProviderTab(p)}
                     className="relative flex-1 rounded-full py-1 text-[11px] font-semibold transition-colors"
                     style={{ color: providerTab === p ? 'var(--accent)' : 'var(--fg-muted)' }}
                   >
-                    {p === 'nvidia' ? 'NVIDIA' : p === 'google' ? 'Google' : 'OpenCode'}
+                    {p === 'nvidia' ? 'NVIDIA' : p === 'google' ? 'Google' : p === 'opencode' ? 'OpenCode' : 'Unlid'}
                   </button>
                 ))}
               </div>
@@ -1318,6 +1319,28 @@ export default function ChatInterface() {
                       <span>{opt.label}</span>
                       {selected && (
                         <svg className="w-4 h-4 ml-2" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            ) : providerTab === 'unlid' ? (
+              <>
+                {dropdownGroups.unlid.length === 0 && <p className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{isModelsLoading ? 'Modellek frissítése…' : 'Nincs Unlid modell. Állítsd be az UNLID_API_KEY kulcsot.'}</p>}
+                {dropdownGroups.unlid.map(opt => {
+                  const selected = opt.id === selectedModelId;
+                  return (
+                    <button key={opt.id} onClick={() => handleModelChange(opt.id)}
+                      className="w-full text-left px-4 py-3 text-sm transition-colors duration-100 flex items-center justify-between gap-3"
+                      style={{ color: selected ? 'var(--accent)' : 'var(--fg-secondary)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span className="min-w-0"><span className="block truncate">{opt.label}</span>{opt.description && <span className="block mt-0.5 text-[10px] truncate" style={{ color: 'var(--fg-muted)' }}>{opt.description}</span>}</span>
+                      {selected && (
+                        <svg className="w-4 h-4 ml-2 shrink-0" style={{ color: 'var(--accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
                         </svg>
                       )}

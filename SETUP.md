@@ -20,6 +20,7 @@ A Vercel deploy során add meg a Supabase változókat, valamint azoknak a model
 - NVIDIA NIM: `NVIDIA_NIM_API_KEY`
 - Google Gemini: `GEMINI_API_KEY`
 - OpenCode Zen: `OPENCODE_API_KEY`
+- Unlid: `UNLID_API_KEY` (API key from [unlid.ai](https://unlid.ai/docs))
 - AWS Bedrock Claude/Nova: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, opcionálisan `AWS_SESSION_TOKEN`
 
 Csak a kiválasztott modellhez tartozó szolgáltató kulcsa szükséges. A helyi `.env.example` fájl tartalmazza a változók sablonját.

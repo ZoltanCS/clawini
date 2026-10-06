@@ -19,6 +19,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // OpenCode Zen (OpenAI-compatible endpoint)
 const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '');
 const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
+const UNLID_BASE_URL = 'https://api.unlid.ai/v1';
+const UNLID_API_KEY = process.env.UNLID_API_KEY;
 
 const OPENCODE_MODELS = new Set([
   'gpt-5.6-luna',
@@ -393,6 +395,56 @@ export async function POST(req: NextRequest) {
       });
 
       return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
+    // --- UNLID: OpenAI-compatible chat/completions ---
+    if (provider === 'unlid') {
+      if (!UNLID_API_KEY) {
+        return NextResponse.json({ error: 'API key not configured (set UNLID_API_KEY)' }, { status: 503 });
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      let unlidRes: Response;
+      try {
+        unlidRes = await fetch(`${UNLID_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${UNLID_API_KEY}` },
+          body: JSON.stringify({
+            model: modelId,
+            messages: chatMessages,
+            stream: true,
+            stream_options: { include_usage: true },
+            max_tokens: Math.min(maxTokens || 4096, 8192),
+            temperature: temperature ?? 0.7,
+            top_p: topP ?? 0.9,
+            frequency_penalty: frequencyPenalty ?? 0.3,
+            ...(thinking ? { reasoning_effort: reasoningEffort || 'high' } : {}),
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!unlidRes.ok) {
+        const details = await unlidRes.text().catch(() => '');
+        const message = unlidRes.status === 401 ? 'Unlid API key rejected - check UNLID_API_KEY'
+          : unlidRes.status === 429 ? 'Unlid rate limit reached - try again shortly'
+            : unlidRes.status === 503 ? 'This Unlid model is temporarily unavailable'
+              : `Unlid API error ${unlidRes.status}`;
+        return NextResponse.json({ error: message, details }, { status: unlidRes.status });
+      }
+      if (!unlidRes.body) return NextResponse.json({ error: 'Empty Unlid response body' }, { status: 502 });
+
+      return new Response(unlidRes.body, {
         headers: {
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',
