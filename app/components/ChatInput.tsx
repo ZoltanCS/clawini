@@ -110,7 +110,7 @@ export default function ChatInput({
   }, []);
 
   const processFiles = async (files: File[]) => {
-    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    const imageFiles = files.filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
     if (imageFiles.length === 0) {
       showToast('Csak képeket lehet feltölteni!');
       return;
@@ -127,14 +127,23 @@ export default function ChatInput({
       for (let i = 0; i < imageFiles.length; i++) {
         const file = imageFiles[i];
         setUploadProgress(Math.round((i / imageFiles.length) * 100));
+        let imageFile = file;
+        if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+          const { default: convertHeic } = await import('heic2any');
+          const converted = await convertHeic({ blob: file, toType: 'image/jpeg', quality: 0.88 });
+          const jpeg = Array.isArray(converted) ? converted[0] : converted;
+          if (!jpeg) throw new Error('A HEIC képből nem sikerült előnézetet készíteni.');
+          const jpegName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+          imageFile = new File([jpeg], jpegName, { type: 'image/jpeg', lastModified: file.lastModified });
+        }
         try {
-          const compressed = await imageCompression(file, {
+          const compressed = await imageCompression(imageFile, {
             maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true,
           });
           compressedFiles.push(compressed);
         } catch {
-          // Fallback: use original file if compression fails
-          compressedFiles.push(file);
+          // Keep the decodable, converted file if compression itself fails.
+          compressedFiles.push(imageFile);
         }
       }
       setUploadProgress(100);
@@ -144,7 +153,10 @@ export default function ChatInput({
       setImagePreviews(prev => [...prev, ...compressedFiles.map(f => URL.createObjectURL(f))]);
     } catch (error) {
       console.error('Error compressing images:', error);
-      showToast('Hiba a kép tömörítésekor');
+      const heicSelected = imageFiles.some(file => /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name));
+      showToast(heicSelected
+        ? 'Ezt a telefonos HEIC képet nem sikerült megnyitni. Próbáld újra JPG-ként megosztva.'
+        : 'Hiba a kép előkészítésekor. Próbálj meg egy másik képet.');
     } finally {
       setUploadProgress(0);
     }
@@ -315,7 +327,7 @@ export default function ChatInput({
                 <div key={index} className="relative flex-shrink-0">
                   <img
                     src={preview}
-                    alt={`Preview ${index + 1}`}
+                    alt={`Kép előnézete ${index + 1}`}
                     className="object-cover rounded-xl"
                     style={{ width: '56px', height: '56px', borderRadius: '12px' }}
                   />

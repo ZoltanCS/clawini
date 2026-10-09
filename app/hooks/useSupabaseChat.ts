@@ -157,7 +157,7 @@ export function useSupabaseChat(user: User | null) {
 
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     let uploadedPath = '';
-    let uploadError: { message: string; statusCode?: string } | null = null;
+    let uploadError: { message: string; statusCode?: string; error?: string } | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       const uniqueId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
@@ -184,14 +184,16 @@ export function useSupabaseChat(user: User | null) {
     if (uploadError) {
       console.error('Error uploading image:', uploadError);
       const status = Number(uploadError.statusCode);
-      if (status === 401 || status === 403) {
-        throw new Error('A tárhely elutasította a feltöltést. Jelentkezz ki, majd vissza, és próbáld újra.');
-      }
+      const detail = [uploadError.error, uploadError.message].filter((value, index, all) => value && all.indexOf(value) === index).join(': ');
+      if (status === 401) throw new Error('Lejárt a bejelentkezésed. Jelentkezz be újra a kép feltöltéséhez.');
+      if (status === 403) throw new Error(`A Supabase Storage nem engedélyezte a feltöltést (403). Ellenőrizd a chat-images bucket jogosultságait. ${detail}`);
       if (status === 413) throw new Error('A kép túl nagy a tárhely számára.');
-      if (status === 429 || status >= 500 || !status) {
-        throw new Error('A képfeltöltés átmenetileg nem sikerült hálózati hiba miatt. A képek megmaradtak; próbáld újra.');
+      if (status === 429) throw new Error('A képtárhely túl sok kérést kapott. Várj pár másodpercet, majd próbáld újra.');
+      if (status >= 500) throw new Error(`A Supabase képtárhelye hibát adott (${status}). A képek megmaradtak; próbáld újra.`);
+      if (!status && /failed to fetch|network request failed|networkerror|fetch failed/i.test(detail)) {
+        throw new Error('A Supabase képtárhelye nem válaszol, bár az internetkapcsolatod működik. Ellenőrizd a tárhely elérhetőségét, majd próbáld újra.');
       }
-      throw new Error(`Nem sikerült feltölteni a képet: ${uploadError.message}`);
+      throw new Error(`A Supabase képtárhely visszautasította a feltöltést${status ? ` (${status})` : ''}: ${detail || 'ismeretlen hiba'}`);
     }
 
     const { data } = supabase.storage
