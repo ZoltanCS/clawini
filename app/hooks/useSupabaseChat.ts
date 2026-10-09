@@ -153,23 +153,50 @@ export function useSupabaseChat(user: User | null) {
   };
 
   const uploadImage = async (file: File, chatId: string): Promise<string | null> => {
-    if (!user) return null;
+    if (!user) throw new Error('A kép feltöltéséhez előbb jelentkezz be.');
 
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${user.id}/${chatId}/${Date.now()}.${fileExt}`;
+    let uploadedPath = '';
+    let uploadError: { message: string; statusCode?: string } | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const uniqueId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const fileName = `${user.id}/${chatId}/${uniqueId}.${fileExt}`;
+      const result = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          contentType: file.type || `image/${fileExt}`,
+        });
+      uploadError = result.error;
+      if (!uploadError) {
+        uploadedPath = fileName;
+        break;
+      }
 
-    const { error: uploadError } = await supabase.storage
-      .from('chat-images')
-      .upload(fileName, file);
+      const status = Number(uploadError.statusCode);
+      const retryable = !status || status === 408 || status === 429 || status >= 500;
+      if (!retryable || attempt === 2) break;
+      await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+    }
 
     if (uploadError) {
       console.error('Error uploading image:', uploadError);
-      return null;
+      const status = Number(uploadError.statusCode);
+      if (status === 401 || status === 403) {
+        throw new Error('A tárhely elutasította a feltöltést. Jelentkezz ki, majd vissza, és próbáld újra.');
+      }
+      if (status === 413) throw new Error('A kép túl nagy a tárhely számára.');
+      if (status === 429 || status >= 500 || !status) {
+        throw new Error('A képfeltöltés átmenetileg nem sikerült hálózati hiba miatt. A képek megmaradtak; próbáld újra.');
+      }
+      throw new Error(`Nem sikerült feltölteni a képet: ${uploadError.message}`);
     }
 
     const { data } = supabase.storage
       .from('chat-images')
-      .getPublicUrl(fileName);
+      .getPublicUrl(uploadedPath);
 
     return data.publicUrl;
   };

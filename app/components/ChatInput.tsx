@@ -55,6 +55,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<(string | null)[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [existingEditUrls, setExistingEditUrls] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -139,6 +140,7 @@ export default function ChatInput({
       setUploadProgress(100);
 
       setSelectedImages(prev => [...prev, ...compressedFiles]);
+      setUploadedImageUrls(prev => [...prev, ...compressedFiles.map(() => null)]);
       setImagePreviews(prev => [...prev, ...compressedFiles.map(f => URL.createObjectURL(f))]);
     } catch (error) {
       console.error('Error compressing images:', error);
@@ -156,12 +158,15 @@ export default function ChatInput({
 
     if (selectedImages.length > 0 && onImageUpload) {
       setIsUploading(true);
-      const urls: (string | null)[] = [];
+      const urls = [...uploadedImageUrls];
       try {
         for (let i = 0; i < selectedImages.length; i++) {
           setUploadProgress(Math.round(((i + 1) / selectedImages.length) * 100));
+          if (urls[i]) continue;
           const url = await onImageUpload(selectedImages[i]);
-          urls.push(url);
+          if (!url) throw new Error('A képfeltöltés nem adott vissza címet. A képek megmaradtak; próbáld újra.');
+          urls[i] = url;
+          setUploadedImageUrls([...urls]);
         }
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Nem sikerült feltölteni a képet');
@@ -169,9 +174,9 @@ export default function ChatInput({
         setUploadProgress(0);
         return;
       }
-      const uploadedUrls = urls.filter((url): url is string => url !== null);
-      if (uploadedUrls.length === 0 && allImageUrls.length === 0) {
-        showToast('Nem sikerült feltölteni a képeket');
+      const uploadedUrls = urls.filter((url): url is string => Boolean(url));
+      if (uploadedUrls.length !== selectedImages.length) {
+        showToast('Néhány kép nem töltődött fel. A piszkozat megmaradt; próbáld újra.');
         setIsUploading(false);
         setUploadProgress(0);
         return;
@@ -184,6 +189,7 @@ export default function ChatInput({
     onSend(input.trim(), allImageUrls.length > 0 ? allImageUrls : null);
     setInput('');
     setSelectedImages([]);
+    setUploadedImageUrls([]);
     setExistingEditUrls([]);
     setImagePreviews(prev => { prev.forEach((u, i) => { if (i >= existingEditUrls.length) URL.revokeObjectURL(u); }); return []; });
     onCancelEdit?.();
@@ -239,6 +245,7 @@ export default function ChatInput({
     } else {
       const fileIdx = index - existingEditUrls.length;
       setSelectedImages(prev => prev.filter((_, i) => i !== fileIdx));
+      setUploadedImageUrls(prev => prev.filter((_, i) => i !== fileIdx));
       setImagePreviews(prev => {
         URL.revokeObjectURL(prev[index]);
         return prev.filter((_, i) => i !== index);
