@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchNimModels, NIM_FALLBACK, GEMINI_CATALOG, OPENCODE_CATALOG, NimModel } from '@/app/lib/nim-models';
+import { fetchNimModels, NIM_FALLBACK, GEMINI_CATALOG, OPENCODE_CATALOG, ABLITAI_CATALOG, NimModel } from '@/app/lib/nim-models';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,6 +130,7 @@ export async function GET() {
     ...(geminiKey ? (googleLive || GEMINI_CATALOG).map((model) => ({ ...model, provider: 'google' as const })) : []),
     ...(openCodeKey ? (openCodeLive || OPENCODE_CATALOG).map((model) => ({ ...model, provider: 'opencode' as const })) : []),
     ...(unlidKey ? (unlidLive || []).map((model) => ({ ...model, provider: 'unlid' as const })) : []),
+    ...ABLITAI_CATALOG,
   ];
   const unique = Array.from(new Map(models.map((model) => [`${model.provider}:${model.id}`, model])).values());
   return NextResponse.json({ models: unique, refreshedAt: new Date().toISOString(), live: { nvidia: Boolean(nimLive), google: Boolean(googleLive), opencode: Boolean(openCodeLive), unlid: Boolean(unlidLive) } });

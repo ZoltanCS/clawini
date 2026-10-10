@@ -5,6 +5,7 @@ const PROVIDER_CONFIG = {
   google: { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key: process.env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite' },
   opencode: { url: `${(process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '')}/chat/completions`, key: process.env.OPENCODE_API_KEY, model: 'kimi-k2.6' },
   unlid: { url: 'https://api.unlid.ai/v1/chat/completions', key: process.env.UNLID_API_KEY, model: 'glm-5.3-flash-uncensored' },
+  ablitai: { url: 'https://csalazoltantamas--ep-ablitai-server.us-west.modal.direct/v1/chat/completions', key: undefined, model: 'ablitai' },
 } as const;
 
 const COMPACT_SYSTEM_PROMPT = `## Compact System Prompt
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
     if (!config) return NextResponse.json({ error: 'Unsupported model provider' }, { status: 400 });
-    if (!config.key) return NextResponse.json({ error: `Missing API key for ${provider}` }, { status: 503 });
+    if (provider !== 'ablitai' && !config.key) return NextResponse.json({ error: `Missing API key for ${provider}` }, { status: 503 });
 
     const conversationText = messages
       .map((m: any) => {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.key}`,
+        ...(config.key ? { 'Authorization': `Bearer ${config.key}` } : {}),
       },
       body: JSON.stringify({
         model: config.model,

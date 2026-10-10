@@ -8,6 +8,7 @@ const MEMORY_PROVIDERS = {
   google: { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key: process.env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite' },
   opencode: { url: `${(process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '')}/chat/completions`, key: process.env.OPENCODE_API_KEY, model: 'kimi-k2.6' },
   unlid: { url: 'https://api.unlid.ai/v1/chat/completions', key: process.env.UNLID_API_KEY, model: 'glm-5.3-flash-uncensored' },
+  ablitai: { url: 'https://csalazoltantamas--ep-ablitai-server.us-west.modal.direct/v1/chat/completions', key: undefined, model: 'ablitai' },
 } as const;
 
 const EXTRACT_PROMPT = `A felhasználó és AI közötti beszélgetésből azonosítsd a fontos tényeket, preferenciákat, érdeklődési köröket amiket érdemes megjegyezni a felhasználóról.
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const config = MEMORY_PROVIDERS[provider as keyof typeof MEMORY_PROVIDERS];
-    if (!config?.key) return NextResponse.json({ ok: true, memories: [] });
+    if (!config || (provider !== 'ablitai' && !config.key)) return NextResponse.json({ ok: true, memories: [] });
 
     // Format last few messages for extraction
     const recent = messages.slice(-6);
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(config.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key}` },
+      headers: { 'Content-Type': 'application/json', ...(config.key ? { 'Authorization': `Bearer ${config.key}` } : {}) },
       body: JSON.stringify({
         model: config.model,
         messages: [

@@ -1,6 +1,6 @@
 # Clawini Chat
 
-Mobilra optimalizált chatbot Supabase hitelesítéssel és beszélgetés-előzményekkel. Több modell szolgáltatót támogat: NVIDIA NIM, Google Gemini, AWS Bedrock, OpenCode Zen és Unlid.
+Mobilra optimalizált chatbot Supabase hitelesítéssel és beszélgetés-előzményekkel. Több modell szolgáltatót támogat: NVIDIA NIM, Google Gemini, AWS Bedrock, OpenCode Zen, Unlid és Ablitai.
 
 ## ✨ Új Funkciók
 
@@ -114,7 +114,7 @@ A `supabase/schema.sql` fájl tartalmazza:
 - **Database:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth (Email + OAuth)
 - **Storage:** Supabase Storage
-- **AI:** NVIDIA NIM, Google Gemini, AWS Bedrock, OpenCode Zen és Unlid
+- **AI:** NVIDIA NIM, Google Gemini, AWS Bedrock, OpenCode Zen, Unlid és Ablitai (külön API-kulcs nélkül)
 - **Deploy:** Vercel
 
 ## 📱 Reszponzív

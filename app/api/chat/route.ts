@@ -21,6 +21,7 @@ const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai
 const OPENCODE_API_KEY = process.env.OPENCODE_API_KEY;
 const UNLID_BASE_URL = 'https://api.unlid.ai/v1';
 const UNLID_API_KEY = process.env.UNLID_API_KEY;
+const ABLITAI_BASE_URL = 'https://csalazoltantamas--ep-ablitai-server.us-west.modal.direct/v1';
 
 const OPENCODE_MODELS = new Set([
   'gpt-5.6-luna',
@@ -395,6 +396,46 @@ export async function POST(req: NextRequest) {
       });
 
       return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
+    // --- ABLITAI: OpenAI-compatible endpoint, no API key ---
+    if (provider === 'ablitai') {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      let ablitaiRes: Response;
+      try {
+        ablitaiRes = await fetch(`${ABLITAI_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'ablitai',
+            messages: chatMessages,
+            stream: true,
+            stream_options: { include_usage: true },
+            max_tokens: Math.min(maxTokens || 4096, 8192),
+            temperature: temperature ?? 0.7,
+            top_p: topP ?? 0.9,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!ablitaiRes.ok) {
+        const details = await ablitaiRes.text().catch(() => '');
+        return NextResponse.json({ error: `Ablitai API error ${ablitaiRes.status}`, details }, { status: ablitaiRes.status });
+      }
+      if (!ablitaiRes.body) return NextResponse.json({ error: 'Ablitai response body is empty' }, { status: 502 });
+
+      return new Response(ablitaiRes.body, {
         headers: {
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',

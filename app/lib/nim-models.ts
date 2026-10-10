@@ -7,7 +7,7 @@ export interface NimModel {
   supportsThinking: boolean;
   description?: string;
   tier?: 'normal' | 'smart' | 'ultra';
-  provider?: 'nvidia' | 'google' | 'opencode' | 'unlid';
+  provider?: 'nvidia' | 'google' | 'opencode' | 'unlid' | 'ablitai';
   uncensored?: boolean;
   inputPriceUsdPerMillion?: number;
   outputPriceUsdPerMillion?: number;
@@ -42,6 +42,10 @@ export const OPENCODE_CATALOG: NimModel[] = [
   { id: 'longcat-2.0', label: 'LongCat 2.0', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
   { id: 'hy4-preview', label: 'Hy4 Preview', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
   { id: 'hy3', label: 'Hy3', publisher: 'OpenCode', contextWindow: 131072, supportsVision: false, supportsThinking: true },
+];
+
+export const ABLITAI_CATALOG: NimModel[] = [
+  { id: 'ablitai', label: 'Ablitai', publisher: 'Ablitai', contextWindow: 262144, supportsVision: false, supportsThinking: false, provider: 'ablitai' },
 ];
 
 export const NIM_FALLBACK = NIM_CATALOG;
