@@ -209,7 +209,7 @@ export default function ChatInterface() {
       try {
         const { models: cachedModels } = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || '{}');
         if (Array.isArray(cachedModels)) {
-          setModels(cachedModels);
+          setModels(mergeAblitaiModel(cachedModels));
         }
       } catch {}
     };
@@ -266,18 +266,23 @@ export default function ChatInterface() {
       try {
         const { models: cachedModels, timestamp } = JSON.parse(cached2);
         if (Date.now() - timestamp < MODELS_CACHE_AGE) {
-          if (Array.isArray(cachedModels)) setModels(cachedModels);
+          if (Array.isArray(cachedModels)) setModels(mergeAblitaiModel(cachedModels));
           setIsModelsLoading(false);
         }
       } catch {}
     }
 
     fetch('/api/models', { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('Modell lista betöltése sikertelen'); return r.json(); }).then(data => {
-      const m = Array.isArray(data.models) ? data.models : []; setModels(m);
+      const m = mergeAblitaiModel(Array.isArray(data.models) ? data.models : []); setModels(m);
       localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ models: m, timestamp: Date.now() }));
       setIsModelsLoading(false);
     }).catch(() => setIsModelsLoading(false));
   }, []);
+
+  const mergeAblitaiModel = (list: NimModel[]) => [
+    ...list.filter(model => model.provider !== 'ablitai' && model.id !== 'ablitai'),
+    { id: 'ablitai', label: 'Ablitai', publisher: 'Ablitai', contextWindow: 262144, supportsVision: false, supportsThinking: false, provider: 'ablitai' as const },
+  ];
 
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const { chats, currentChat, currentChatId, setCurrentChatId, createNewChat, deleteChat, updateChatTitle, addMessage, uploadImage } = useSupabaseChat(user);
@@ -1266,10 +1271,10 @@ export default function ChatInterface() {
           <div className="fixed inset-0 z-40" onClick={() => setIsModelSheetOpen(false)} />
           <div className="fixed left-3 top-14 w-[min(24rem,calc(100vw_-_1.5rem))] max-h-[min(70dvh,36rem)] rounded-xl shadow-lg z-50 animate-scaleIn overflow-y-auto overscroll-contain" style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
             <div className="px-3 pt-3 pb-1">
-              <div className="relative flex rounded-full p-1 mx-auto max-w-[280px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
+              <div className="relative flex rounded-full p-1 mx-auto max-w-[360px]" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-subtle)' }}>
                 <div
-                  className="absolute top-1 bottom-1 w-1/5 rounded-full transition-transform duration-200"
-                  style={{ background: 'var(--accent-glass)', left: '4px', transform: `translateX(${(['nvidia', 'google', 'opencode', 'unlid', 'ablitai'].indexOf(providerTab)) * 100}%)`, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                  className="absolute top-1 bottom-1 rounded-full transition-all duration-200"
+                  style={{ background: 'var(--accent-glass)', left: `calc(4px + (100% - 8px) * ${(['nvidia', 'google', 'opencode', 'unlid', 'ablitai'].indexOf(providerTab))} / 5)`, width: 'calc((100% - 8px) / 5)', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
                 />
                 {(['nvidia', 'google', 'opencode', 'unlid', 'ablitai'] as const).map(p => (
                   <button

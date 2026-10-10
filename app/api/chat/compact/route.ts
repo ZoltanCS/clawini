@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
           { role: 'system', content: COMPACT_SYSTEM_PROMPT },
           { role: 'user', content: context },
         ],
+        ...(provider === 'ablitai' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         stream: false,
         max_tokens: 1000,
         temperature: 0.3,

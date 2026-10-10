@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
           { role: 'system', content: EXTRACT_PROMPT },
           { role: 'user', content: convo },
         ],
+        ...(provider === 'ablitai' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         max_tokens: 200,
         temperature: 0.3,
       }),

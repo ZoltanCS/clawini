@@ -419,6 +419,7 @@ export async function POST(req: NextRequest) {
             messages: chatMessages,
             stream: true,
             stream_options: { include_usage: true },
+            chat_template_kwargs: { enable_thinking: Boolean(thinking) },
             max_tokens: Math.min(maxTokens || 4096, 8192),
             temperature: temperature ?? 0.7,
             top_p: topP ?? 0.9,
